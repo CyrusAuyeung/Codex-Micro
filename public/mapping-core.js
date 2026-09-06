@@ -1,6 +1,14 @@
 (function (root) {
   'use strict';
   const POS = ['ENC','AG00','AG01','','AG02','AG03','AG04','AG05','ACT06','ACT07','ACT08','ACT09','MODE','ACT10','ACT11','ACT12'];
+  // Physical positions match the 13-key Codex view. Keep firmware array indices intact.
+  const keySlots = [1,2,4,5,6,7,8,9,10,11,13,14,15];
+  const keyPositions = [[0,1],[0,2],[1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[2,3],[3,1],[3,2],[3,3]];
+  const LAYOUT = POS.map((code,index)=>({index,code,kind:'other',label:code||'未命名配置位',location:'原厂其他配置位 · 实体位置未标明'}));
+  LAYOUT[0]={index:0,code:POS[0],kind:'dial',label:'旋钮按下',row:0,col:0,location:'左上角旋钮 · 按下动作'};
+  keySlots.forEach((index,i)=>{const [row,col]=keyPositions[i];LAYOUT[index]={index,code:POS[index],kind:'key',id:'key'+(i+1),label:'按键 '+(i+1),short:String(i+1).padStart(2,'0'),row,col,location:'第'+['一','二','三','四'][row]+'排 · 从左数第'+['一','二','三','四'][col]+'个位置'};});
+  const slotLabel = index => LAYOUT[index].label;
+  const slotReference = index => '#'+index+' · '+(POS[index]||'未命名');
   const MODS = [{v:1,label:'Ctrl'},{v:2,label:'Shift'},{v:4,label:'Alt'},{v:8,label:'Win'}];
   const keys = [];
   function add(n, label, code, group) { keys.push({n:n, label:label, code:code, group:group}); }
@@ -73,7 +81,7 @@
     validate(data,true);
     return missing(data).length ? {format:'codex-micro-ui-draft',version:1,mapping:clone(data),unknownSlots:missing(data)} : clone(data);
   }
-  const api={POS:POS,MODS:MODS,KEYS:keys,clone:clone,keyNumber:keyNumber,hex:hex,validate:validate,missing:missing,equalSlot:equalSlot,changed:changed,payload:payload,keyLabel:keyLabel,parts:parts,fromEvent:fromEvent,parseImport:parseImport,exportValue:exportValue};
+  const api={POS:POS,LAYOUT:LAYOUT,slotLabel:slotLabel,slotReference:slotReference,MODS:MODS,KEYS:keys,clone:clone,keyNumber:keyNumber,hex:hex,validate:validate,missing:missing,equalSlot:equalSlot,changed:changed,payload:payload,keyLabel:keyLabel,parts:parts,fromEvent:fromEvent,parseImport:parseImport,exportValue:exportValue};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.MicroMapping=api;
 })(globalThis);

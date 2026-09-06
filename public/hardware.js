@@ -12,7 +12,7 @@ function stopRecord(){recording=false;clearTimeout(recordTimer);}
 function describeVerification(v){
   if(v.state==='verified')return readToken?'已重新读取并核对一致。请切回蓝灯普通键盘模式使用；网页和托盘程序都可以关闭。':'上次写入已核对。要查看键盘现在的配置，请重新读取。';
   if(v.state==='not-applied')return '重新读取的配置与写入前相同，上次修改没有在本次读取中体现。请核对后再决定是否重新保存。';
-  if(v.state==='different')return '重新读取后，'+v.differences.map(i=>'#'+i).join('、')+' 与预期不同。已显示设备当前配置，请检查。';
+  if(v.state==='different')return '重新读取后，'+v.differences.map(i=>C.slotLabel(i)+'（#'+i+'）').join('、')+' 与预期不同。已显示设备当前配置，请检查。';
   if(['sending','awaiting-verification','uncertain'].includes(v.state))return '上次写入还需要核对。请重新进入 Config 热点，再点击“读取键盘”。';
   return '';
 }
@@ -20,10 +20,16 @@ function render(){
   const changes=changed(),missing=C.missing(draft),locked=busy||stopped;
   for(let i=0;i<16;i++){
     cards[i].querySelector('strong').textContent=C.parts(draft,i).join(' + ');
-    cards[i].setAttribute('aria-label','#'+i+' '+(C.POS[i]||'未命名')+'，'+C.parts(draft,i).join(' + '));
-    cards[i].setAttribute('aria-pressed',String(i===selected));cards[i].classList.toggle('modified',changes.includes(i));cards[i].classList.toggle('unread',missing.includes(i));cards[i].disabled=locked;
+    cards[i].setAttribute('aria-label',C.slotLabel(i)+'，'+C.LAYOUT[i].location+'，'+C.parts(draft,i).join(' + '));
+    cards[i].title=C.slotLabel(i)+' · '+C.slotReference(i)+'\n'+C.parts(draft,i).join(' + ');
+    cards[i].setAttribute('aria-pressed',String(i===selected));cards[i].classList.toggle('selected',i===selected);cards[i].classList.toggle('modified',changes.includes(i));cards[i].classList.toggle('unread',missing.includes(i));cards[i].disabled=locked;
   }
-  $('selected-label').replaceChildren(make('span',C.POS[selected]||'未命名'),make('small','#'+selected));
+  $('selected-label').textContent=C.slotLabel(selected);
+  $('selected-location').textContent=C.LAYOUT[selected].location;
+  $('selected-reference').textContent='原厂编号 '+C.slotReference(selected);
+  const otherChanges=changes.filter(i=>C.LAYOUT[i].kind==='other').length;
+  $('other-slot-state').textContent=otherChanges?otherChanges+' 项修改':'2 项';
+  $('other-slots').classList.toggle('has-changes',otherChanges>0);
   $('shortcut-preview').textContent=C.parts(draft,selected).join(' + ');
   const value=C.keyNumber(draft.key[selected]),select=$('key-select');
   select.querySelectorAll('[data-dynamic]').forEach(e=>e.remove());
@@ -67,13 +73,20 @@ async function load(){
   try{
     const r=await api('/api/device/read');baseline=C.validate(r.mapping,false);draft=C.clone(baseline);readToken=r.readToken;verification=r.verification;
     $('read-label').textContent='已读取键盘的 16 个配置位';$('read-detail').textContent='读取时间：'+new Date(r.readAt).toLocaleString();
-    notify(describeVerification(verification)||'读取完成。选择配置位后即可设置 Windows 快捷键。',verification.state==='different'||verification.state==='not-applied');
+    notify(describeVerification(verification)||'读取完成。点选图中的实体键位，即可设置 Windows 快捷键。',verification.state==='different'||verification.state==='not-applied');
   }catch(e){readToken=null;notify('读取失败：'+e.message,true);}
   finally{busy=false;render();}
 }
-for(let i=0;i<16;i++){
-  const b=make('button',undefined,'mapping-key');b.type='button';b.append(make('small','#'+i+' '+(C.POS[i]||'未命名')),make('strong','未读取'));
-  b.onclick=()=>{selected=i;stopRecord();render();};$('mapping-grid').append(b);cards.push(b);
+for(const slot of C.LAYOUT){
+  const i=slot.index,b=slot.kind==='dial'?$('mapping-dial'):make('button',undefined,slot.kind==='key'?'hardware':'mapping-key');
+  b.type='button';b.dataset.slot=String(i);
+  if(slot.kind==='key'){
+    b.id='mapping-'+slot.id;b.style.gridRow=String(slot.row+1);b.style.gridColumn=String(slot.col+1);
+    b.append(make('span',slot.short,'key-number'),make('strong','未读取','key-function'));$('mapping-grid').append(b);
+  }else if(slot.kind==='other'){
+    b.id='mapping-slot-'+i;b.append(make('small',C.slotReference(i)),make('strong','未读取'));$('other-slot-grid').append(b);
+  }
+  b.onclick=()=>{selected=i;stopRecord();render();};cards[i]=b;
 }
 for(const m of C.MODS){
   const label=make('label'),input=document.createElement('input');input.type='checkbox';input.setAttribute('aria-label',m.label);input.onchange=()=>{draft.mod[selected]=input.checked?(draft.mod[selected]||0)|m.v:(draft.mod[selected]||0)&~m.v;render();};
@@ -116,7 +129,7 @@ $('save-button').onclick=async()=>{
     const r=await api('/api/device/prepare',{readToken,draft});saveToken=r.token;
     if(!r.changes.length){notify('键盘已包含这些修改。请重新读取以更新本页，没有重复写入。');return;}
     $('change-list').replaceChildren();
-    for(const c of r.changes){const row=make('div',undefined,'change-row'),values=make('div');values.append(make('span',c.before,'old'),make('span',' → '+c.after));row.append(make('strong','#'+c.index+' '+c.label),values);$('change-list').append(row);}
+    for(const c of r.changes){const row=make('div',undefined,'change-row'),name=make('div'),values=make('div');name.append(make('strong',C.slotLabel(c.index)),make('small',C.slotReference(c.index),'change-reference'));values.append(make('span',c.before,'old'),make('span',' → '+c.after));row.append(name,values);$('change-list').append(row);}
     if(simulation)$('change-list').prepend(make('p','模拟测试：本次只写入模拟设备。','field-help'));
     $('save-dialog').showModal();$('cancel-save').focus();
   }catch(e){notify('保存前检查未通过：'+e.message+' 本次没有写入键盘。',true);}
@@ -138,8 +151,8 @@ $('quit-button').onclick=async()=>{
 render();
 try{
   const response=await fetch('/api/device/status',{cache:'no-store'}),value=await response.json();
-  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.1 版。');
-  simulation=Boolean(value.simulation);$('simulation-banner').hidden=!simulation;verification=value;
+  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.2 版。');
+  simulation=Boolean(value.simulation);$('simulation-banner').hidden=!simulation;$('layout-simulation').hidden=!simulation;verification=value;
   const message=describeVerification(value);if(message)notify(message);
   if(value.localRemappingEnabled)notify((message?message+'\n':'')+'原来的 Codex 本机映射仍已启用，可在“Codex 模式”页面单独关闭。');
   render();

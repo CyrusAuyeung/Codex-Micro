@@ -22,9 +22,10 @@ internal static class Launcher {
             }
         }catch{return null;}
     }
-    internal static bool Running(){return ServiceVersion()=="1.1.1";}
+    internal static bool Running(){return ServiceVersion()=="1.1.2";}
     private static void WaitForPreviousLauncher(string version){
-        try{using(var previous=Mutex.OpenExisting(version=="1.0.0"?"Local\\MicroWindowsLauncher":"Local\\MicroWindowsLauncher11")){
+        string previousName=version=="1.0.0"?"Local\\MicroWindowsLauncher":version=="1.1.0"?"Local\\MicroWindowsLauncher11":"Local\\MicroWindowsLauncher111";
+        try{using(var previous=Mutex.OpenExisting(previousName)){
             bool acquired=false;
             try{acquired=previous.WaitOne(6000);}catch(AbandonedMutexException){acquired=true;}
             finally{if(acquired)previous.ReleaseMutex();}
@@ -48,8 +49,8 @@ internal static class Launcher {
             if(Running()){Open();return 0;}
             // Retire only identified earlier versions of this same application.
             var previousVersion=ServiceVersion();
-            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
-            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher111",out first)) {
+            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"||previousVersion=="1.1.1"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
+            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher112",out first)) {
                 if(!first){for(int i=0;i<30&&!Running();i++)Thread.Sleep(200);if(Running()){Open();return 0;}throw new Exception("另一个 Micro Windows 正在启动，请稍后重试。");}
                 string root=AppDomain.CurrentDomain.BaseDirectory,node=Path.Combine(root,"runtime/node.exe"),script=Path.Combine(root,"server.mjs");
                 if(!File.Exists(node)||!File.Exists(script)||!File.Exists(Path.Combine(root,"MicroHID.Windows.exe")))throw new Exception("文件不完整。请先解压整个 Micro Windows 文件夹，再双击启动程序。");

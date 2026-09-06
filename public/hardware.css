@@ -4,3 +4,36 @@
 .network-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;margin:16px 0;border:1px solid var(--line,#e4e4dd);border-radius:9px;background:#fffefa}
 .network-card p{margin:7px 0;color:var(--muted,#788078);font-size:13px;line-height:1.7;overflow-wrap:anywhere}.network-card small{color:#8a9088;font-size:11px}.network-card .toolbar-actions{flex-shrink:0}
 @media(max-width:640px){.network-card{align-items:flex-start;flex-direction:column}.network-card .toolbar-actions{flex-wrap:wrap}.connection{max-width:155px}}
+
+/* Use the same physical 13-key case as the Codex page; firmware indices stay in JS. */
+.physical-board .drawing-surface{min-height:0;margin-top:0;padding:44px 18px 20px}
+.physical-board .keyboard-case{padding:40px 28px 34px}
+.physical-board .keyboard-grid{gap:9px}
+.physical-board .hardware strong{font-weight:500}
+.physical-board .hardware.unread strong{color:#959b91;font-weight:400}
+.physical-board .hardware.modified:after{position:absolute;right:10px;top:11px;width:5px;height:5px;border-radius:50%;background:var(--accent);content:""}
+.physical-board .hardware:focus-visible{outline:2px solid var(--accent)}
+.physical-board .fixed-control{cursor:default}
+.physical-board .fixed-control:hover{background:transparent;border-color:transparent;transform:none}
+.physical-board .dial-rim{width:60px;height:auto;aspect-ratio:1;flex-shrink:0}
+.physical-board .dial-shortcut{position:absolute;left:3px;right:3px;top:48%;font-size:9px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.physical-board .stick-base{width:60px;height:auto;aspect-ratio:1}
+.physical-board .stick-cap{width:82%;height:82%}
+.physical-board .stick-cap i{left:28%;right:28%;top:50%}
+.physical-board .stick-cap b{top:28%;bottom:28%;left:50%}
+.physical-board .special-label{font-size:9px;letter-spacing:0;white-space:nowrap}
+.physical-board .mapping-legend{max-width:416px;margin:22px auto 0}
+.physical-board .mapping-legend{flex-wrap:wrap;gap:12px 18px}
+#layout-simulation{margin-left:auto;color:#8a4530}
+.other-slots{margin-top:20px;border-top:1px solid var(--line);padding-top:17px}
+.other-slots summary{cursor:pointer;font-size:12px;color:var(--sub)}
+.other-slots summary>span{float:right;font-size:10px;margin:2px 0 0 8px}
+.other-slots.has-changes summary>span{color:var(--accent)}
+.other-slots p{font-size:11px;line-height:1.8;color:var(--sub);margin:12px 0}
+.other-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.other-slot-grid .mapping-key{min-height:74px;padding:10px 12px}
+.slot-reference{display:inline-block;font-size:10px;line-height:1.6;letter-spacing:.3px;color:var(--sub);background:#f3f3ed;border:1px solid var(--line);padding:3px 7px;border-radius:4px}
+.mapping-editor #selected-location{margin:7px 0 9px}
+.change-reference{display:block;color:var(--sub);font-size:10px;font-weight:400;line-height:1.5}
+@media(min-width:681px) and (max-width:1000px){.mapping-workspace{grid-template-columns:minmax(0,1.45fr) minmax(260px,1fr)}.physical-board .drawing-surface{padding-left:10px;padding-right:10px}.physical-board .keyboard-case{padding:34px 20px 30px;border-radius:30px}.physical-board .keyboard-grid{gap:7px}.physical-board .key-number{top:8px;left:8px}.physical-board .key-function{left:7px;right:7px;bottom:10px;font-size:10px}.physical-board .special-label{font-size:8px}}
+@media(max-width:680px){.physical-board .drawing-surface{padding:41px 10px 17px}.physical-board .drawing-tag{left:12px;letter-spacing:1px}.physical-board .drawing-tag span{font-size:8px;margin-left:6px}.physical-board .keyboard-case{padding:33px 20px 30px;border-radius:30px}.physical-board .keyboard-grid{gap:7px}.physical-board .key-number{top:9px;left:9px;font-size:10px}.physical-board .key-function{left:7px;right:7px;bottom:11px;font-size:10px}.physical-board .special-label{font-size:8px}.physical-board .dial-shortcut{font-size:8px}.physical-board .case-caption{font-size:6px;letter-spacing:1px}.physical-board .mapping-legend{font-size:9px}.mapping-editor{scroll-margin-top:20px}.change-row{grid-template-columns:100px 1fr}}

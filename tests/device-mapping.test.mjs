@@ -5,9 +5,32 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {DeviceMapping} from '../device-mapping.mjs';
 import {mockDevice} from './mock-device.mjs';
+import {createRequire} from 'node:module';
+import {controls} from '../model.mjs';
+const C=createRequire(import.meta.url)('../public/mapping-core.js');
 const clone=structuredClone;
 async function setup(t){const mock=await mockDevice();t.after(()=>mock.close());const data=await mkdtemp(path.join(process.env.MICRO_TEST_ROOT||tmpdir(),'micro-device-test-'));const service=new DeviceMapping({data,simulation:true,testOrigin:mock.origin,timeout:1000});await service.init();return {...mock,data,service};}
 async function edit(service,index=1,key='0x19'){const read=await service.read(),draft=clone(read.mapping);draft.key[index]=key;return {read,draft,prepared:await service.prepare({readToken:read.readToken,draft})};}
+
+test('ordinary physical positions match the Codex 13-key view without assigning unknown controls',()=>{
+  const physical=C.LAYOUT.filter(slot=>slot.kind==='key');
+  assert.deepEqual(physical.map(({id,row,col})=>({id,row,col})),controls.filter(c=>c.kind==='key').map(({id,row,col})=>({id,row,col})));
+  assert.deepEqual(physical.map(s=>s.index),[1,2,4,5,6,7,8,9,10,11,13,14,15]);
+  assert.deepEqual(physical.map(s=>s.code),['AG00','AG01','AG02','AG03','AG04','AG05','ACT06','ACT07','ACT08','ACT09','ACT10','ACT11','ACT12']);
+  assert.deepEqual(C.LAYOUT.filter(s=>s.kind==='other').map(s=>s.index),[3,12]);
+  assert.deepEqual([C.LAYOUT[0].kind,C.LAYOUT[0].row,C.LAYOUT[0].col],['dial',0,0]);
+  assert.equal(new Set(C.LAYOUT.filter(s=>s.kind!=='other').map(s=>s.row+','+s.col)).size,14);
+});
+test('editing physical key 13 writes firmware slot 15 and preserves reserved slots',async t=>{
+  const {service,state}=await setup(t);
+  state.mapping.mod[3]=128;state.mapping.key[3]='0xFE';state.mapping.mod[12]=32;state.mapping.key[12]=65530;
+  const before=clone(state.mapping),slot=C.LAYOUT.find(s=>s.id==='key13');
+  const {prepared}=await edit(service,slot.index,'0x2B');
+  assert.deepEqual(prepared.changes.map(c=>c.index),[15]);assert.equal(prepared.changes[0].label,'ACT12');
+  await service.commit({token:prepared.token});assert.equal(state.posts.length,1);
+  const expected=clone(before);expected.key[15]='0x2B';assert.deepEqual(state.posts[0],expected);
+  assert.equal((await service.read()).verification.state,'verified');
+});
 
 test('device save needs confirmation, preserves unknown fields, backs up and verifies after restart',async t=>{
   const {service,state,data,origin}=await setup(t);state.mapping.mod[7]=129;state.mapping.key[7]=65530;state.mapping.key[8]=40;
