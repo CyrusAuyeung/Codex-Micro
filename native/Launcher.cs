@@ -21,6 +21,7 @@ internal static class Launcher {
     internal static string Origin="http://127.0.0.1:18414",Data,PipeName,MutexName;
     internal static bool TestMode;
     private static Process server;
+    private static bool serverStarted;
     private static StreamWriter log;
     private static readonly object logLock=new object();
     internal static Dictionary<string,object> Health() {
@@ -105,7 +106,7 @@ internal static class Launcher {
                 start.EnvironmentVariables["MICRO_WINDOWS_DATA"]=Data;start.EnvironmentVariables["MICRO_WINDOWS_PORT"]=port;
                 if(!TestMode)foreach(var name in new[]{"MICRO_WINDOWS_TEST","MICRO_WINDOWS_HELPER","MICRO_WINDOWS_DEVICE_ORIGIN","MICRO_WINDOWS_INPUT_HELPER","NODE_OPTIONS","NODE_PATH"})start.EnvironmentVariables.Remove(name);
                 else start.EnvironmentVariables["MICRO_WINDOWS_TEST"]="1";
-                server=new Process{StartInfo=start};server.OutputDataReceived+=Log;server.ErrorDataReceived+=Log;server.Start();server.BeginOutputReadLine();server.BeginErrorReadLine();
+                server=new Process{StartInfo=start};server.OutputDataReceived+=Log;server.ErrorDataReceived+=Log;server.Start();serverStarted=true;server.BeginOutputReadLine();server.BeginErrorReadLine();
                 for(int i=0;i<60&&!Running();i++){if(server.HasExited)throw new Exception("本地服务启动失败。日志："+Path.Combine(Data,"panel.log"));Thread.Sleep(150);}
                 if(!Running())throw new Exception("本地服务未就绪，端口可能被占用。日志："+Path.Combine(Data,"panel.log"));
                 using(var context=new DesktopContext()){Application.Run(context);}
@@ -113,7 +114,7 @@ internal static class Launcher {
                 return 0;
             }
         }catch(Exception e){if(TestMode){Directory.CreateDirectory(Data);File.WriteAllText(Path.Combine(Data,"desktop-error.txt"),e.ToString());}else MessageBox.Show(e.Message,"Micro Windows",MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;}
-        finally{if(server!=null&&!server.HasExited){Stop();if(!server.WaitForExit(4000))server.Kill();}lock(logLock){if(log!=null){log.Dispose();log=null;}}}
+        finally{if(serverStarted&&!server.HasExited){Stop();if(!server.WaitForExit(4000))server.Kill();}lock(logLock){if(log!=null){log.Dispose();log=null;}}}
     }
     private sealed class DesktopContext:ApplicationContext {
         private readonly Form window;
