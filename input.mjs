@@ -29,9 +29,13 @@ export class KeyboardInput {
     if(m.kind==='status'){this.ready=Boolean(m.ready);this.error=m.error||null;}
     if(m.kind==='error')this.error=String(m.error||'按键检测失败。');
     if(m.kind==='recording'&&this.session?.id===m.id){this.session.armed=true;this.session.guarded=m.guarded===true;}
+    if(m.kind==='progress'&&this.session?.id===m.id&&this.session.armed&&!this.session.result&&Date.now()<this.session.expires){
+      if(Number.isInteger(m.mod)&&m.mod>=0&&m.mod<=255&&(m.key===null||(Number.isInteger(m.key)&&m.key>=0&&m.key<=65535)))this.session.progress={id:m.id,mod:m.mod,key:m.key};
+    }
     if(m.kind==='recorded'&&this.session?.id===m.id&&!this.session.result&&Date.now()<this.session.expires){
       if(m.error)this.session.result={id:m.id,error:String(m.error)};
       else if(Number.isInteger(m.mod)&&m.mod>=0&&m.mod<=255&&Number.isInteger(m.key)&&m.key>0&&m.key<=65535)this.session.result={id:m.id,mod:m.mod,key:m.key};
+      if(this.session.result)this.session.progress=null;
     }
   }
   async begin(client,id){
@@ -39,7 +43,7 @@ export class KeyboardInput {
     if(this.session&&!this.session.result&&this.session.expires>Date.now()&&this.session.client!==client)throw new Error('另一个页面正在录入组合键，请先结束那次录入。');
     this.start();
     if(this.session&&!this.session.result)try{this.send({op:'cancel',id:this.session.id});}catch{}
-    const session=this.session={client,id,expires:Date.now()+21000,result:null,armed:false,guarded:false};
+    const session=this.session={client,id,expires:Date.now()+21000,result:null,progress:null,armed:false,guarded:false};
     const readyUntil=Date.now()+2500;while(this.session===session&&!this.ready&&Date.now()<readyUntil&&!this.error)await new Promise(r=>setTimeout(r,25));
     if(this.session!==session)throw new Error('录入已取消。');
     if(!this.ready){const message=this.error||'Windows 按键检测正在启动，请稍后再试。';this.cancel(client,id);throw new Error(message);}

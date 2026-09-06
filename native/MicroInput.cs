@@ -51,6 +51,8 @@ internal static class MicroInput {
     }
     sealed class ChordCapture {
         internal int Mods,Key=-1,ChordMods;internal bool Finished;
+        internal int PreviewMod{get{return Key<0?Mods:ChordMods;}}
+        internal int? PreviewKey{get{return Key<0?(int?)null:Key;}}
         readonly HashSet<int> blocked=new HashSet<int>();
         internal ChordCapture(int mods){Mods=mods;}
         internal bool Handle(int vk,int scan,int flags){
@@ -69,8 +71,10 @@ internal static class MicroInput {
             if(GetForegroundWindow()!=recordWindow||DateTime.UtcNow>recordDeadline){string id=recordId;EndRecord();NotifyLater(new{kind="recorded",id,error="录入已结束，请保持页面在前台并重新开始。"});return CallNextHookEx(IntPtr.Zero,code,w,l);}
             int vk=Marshal.ReadInt32(l),scan=Marshal.ReadInt32(l,4),llFlags=Marshal.ReadInt32(l,8);
             if(vk<=0||vk>=255)return CallNextHookEx(hook,code,w,l);
+            int previousMod=capture.PreviewMod;int? previousKey=capture.PreviewKey;
             bool suppress=capture.Handle(vk,scan,((llFlags&1)!=0?2:0)|((llFlags&0x80)!=0?1:0));
             if(capture.Finished){string id=recordId;int key=capture.Key,mod=capture.ChordMods;EndRecord();NotifyLater(new{kind="recorded",id,mod,key,error=key==0?"此按键无法作为普通键盘主键录入，请手动选择。":null});}
+            else if(previousMod!=capture.PreviewMod||previousKey!=capture.PreviewKey)NotifyLater(new{kind="progress",id=recordId,mod=capture.PreviewMod,key=capture.PreviewKey});
             return suppress?new IntPtr(1):CallNextHookEx(hook,code,w,l);
         }catch{string id=recordId;EndRecord();NotifyLater(new{kind="recorded",id,error="录入检测已停止，请重新开始。"});return CallNextHookEx(IntPtr.Zero,code,w,l);}
     }
@@ -81,6 +85,7 @@ internal static class MicroInput {
         hook=SetWindowsHookEx(13,HookCallback,GetModuleHandle(null),0);
         if(hook==IntPtr.Zero){int error=Marshal.GetLastWin32Error();EndRecord();throw new System.ComponentModel.Win32Exception(error);}
         Emit(new{kind="recording",id,guarded=true});
+        Emit(new{kind="progress",id,mod=capture.PreviewMod,key=capture.PreviewKey});
     }
     static void ProcessCommands(){string line;while(Commands.TryDequeue(out line)){
         if(line=="quit"){EndRecord();Application.ExitThread();return;}
@@ -103,7 +108,14 @@ internal static class MicroInput {
         var altA=new ChordCapture(0);
         if(!altA.Handle(0xA4,56,0)||!altA.Handle(65,30,0)||!altA.Handle(65,30,0)||!altA.Handle(65,30,1)||altA.Finished||!altA.Handle(0xA4,56,1)||!altA.Finished||altA.Key!=4||altA.ChordMods!=4)throw new Exception("Alt+A suppression or balanced release failed");
         var preHeld=new ChordCapture(1);preHeld.Handle(67,46,0);if(preHeld.Handle(0xA2,29,1)||preHeld.Finished||!preHeld.Handle(67,46,1)||!preHeld.Finished||preHeld.ChordMods!=1)throw new Exception("Pre-held modifier release failed");
-        Console.WriteLine("Input self-test passed: chords, Alt+A suppression and balanced release; no real keys injected or captured.");return 0;
+        var live=new ChordCapture(0);
+        live.Handle(0xA2,29,0);if(live.PreviewMod!=1||live.PreviewKey!=null||live.Finished)throw new Exception("Live Ctrl preview failed");
+        live.Handle(0xA0,42,0);if(live.PreviewMod!=3||live.PreviewKey!=null)throw new Exception("Live Ctrl+Shift preview failed");
+        live.Handle(0xA0,42,1);live.Handle(0xA2,29,1);if(live.PreviewMod!=0||live.PreviewKey!=null||live.Finished)throw new Exception("Released modifiers must clear preview without finishing");
+        live.Handle(0xA4,56,0);live.Handle(65,30,0);if(live.PreviewMod!=4||live.PreviewKey!=4||live.Finished)throw new Exception("Main key must appear before release");
+        live.Handle(0xA4,56,1);if(live.PreviewMod!=4||live.PreviewKey!=4||live.Finished)throw new Exception("Chord preview must stay stable during release");
+        live.Handle(65,30,1);if(!live.Finished||live.ChordMods!=4||live.Key!=4)throw new Exception("Live preview changed final chord");
+        Console.WriteLine("Input self-test passed: live preview, chords, Alt+A suppression and balanced release; no real keys injected or captured.");return 0;
     }
     [STAThread] static int Main(string[] args){
         Console.OutputEncoding=new UTF8Encoding(false);Console.InputEncoding=new UTF8Encoding(false);

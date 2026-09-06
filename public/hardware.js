@@ -5,13 +5,15 @@ let baseline=empty(),draft=empty(),readToken=null,busy=false,stopped=false,recor
 let connection=null;
 const cards=[],mods=[];
 const inputClient=crypto.randomUUID();
-let inputPolling=false,inputTimer=null,recordId=null,recordSlot=null,recordReady=false;
+let inputPolling=false,inputTimer=null,recordId=null,recordSlot=null,recordReady=false,recordGuarded=false,webChord=null;
+const webHeld=new Set();
 const presets=[['复制',1,6],['粘贴',1,25],['撤销',1,29],['截图',10,22],['保存',1,22],['查找',1,9],['桌面',8,7],['任务视图',8,43]];
 function notify(text,error=false){$('notice').textContent=text;$('notice').hidden=false;$('notice').classList.toggle('error',error);}
 function make(tag,text,className){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(className)e.className=className;return e;}
 function changed(){return C.changed(baseline,draft);}
 function stopRecord(){
-  const id=recordId;recordId=null;recordSlot=null;recording=false;recordReady=false;clearTimeout(recordTimer);
+  const id=recordId;recordId=null;recordSlot=null;recording=false;recordReady=false;recordGuarded=false;webChord=null;webHeld.clear();clearTimeout(recordTimer);clearInterval(inputTimer);inputTimer=null;
+  $('record-target').value='';
   if($('record-dialog').open)$('record-dialog').close();
   if(id)api('/api/input/cancel',{client:inputClient,id}).catch(()=>{});
 }
@@ -20,23 +22,35 @@ function finishRecord(result){
   draft.mod[selected]=result.mod;draft.key[selected]=C.hex(C.keyNumber(result.key));
   const text=C.parts(draft,selected).join(' + ');stopRecord();$('record-hint').textContent='已录入：'+text+'。尚未写入键盘。';render();
 }
+function recordPrompt(){return recordGuarded?'拦截已就绪。按下时会实时显示，全部松开后完成录入；Alt + A 等快捷键不会交给截图等软件。':'仅网页录入：按下时会实时显示，全部松开后完成。全局快捷键可能触发其他软件，可手动选择。';}
+function showRecordProgress(progress){
+  if(!recording||!recordReady)return;
+  const {mod,key}=progress;
+  const text=mod||key!==null?C.parts({mod:[mod],key:[key===null?0:key]},0).join(' + '):'';
+  const value=key===0?(mod?text+' + ':'')+'未识别按键':text;
+  if($('record-target').value!==value)$('record-target').value=value;
+  const status=key===null?(mod?'继续按下主键，例如 A、K 或 F1。':recordPrompt()):key===0?'此按键不能作为普通主键录入，可松开后手动选择。':'组合键已识别，松开所有按键即可完成录入。';
+  if($('record-status').textContent!==status)$('record-status').textContent=status;
+}
 async function startRecord(){
   if(busy||stopped)return;if(recording){stopRecord();render();return;}
   recording=true;recordSlot=selected;recordId=crypto.randomUUID();const id=recordId;
   $('record-target').value='';$('record-target').placeholder='正在准备…';$('record-status').textContent='正在准备 Windows 快捷键拦截，请稍候再按键。';
   $('record-dialog').showModal();$('record-target').focus();render();
+  inputTimer=setInterval(pollInput,50);pollInput();
   recordTimer=setTimeout(()=>{stopRecord();render();$('record-hint').textContent='录入已超时。请点击录入，再在电脑键盘上按组合键。';},20000);
   try{const result=await api('/api/input/record',{client:inputClient,id});if(!recording||recordId!==id){await api('/api/input/cancel',{client:inputClient,id});return;}
-    recordReady=true;$('record-target').placeholder='现在按下并松开组合键…';$('record-status').textContent=result.guarded?'拦截已就绪。现在按下并松开组合键，例如 Alt + A；录入期间不会交给截图等软件。':'仅网页录入：全局快捷键仍可能触发其他软件，请手动选择这些组合键。';
+    recordReady=true;recordGuarded=result.guarded===true;$('record-target').placeholder='按键会实时显示在这里…';$('record-status').textContent=recordPrompt();pollInput();
   }catch(e){if(recordId===id){stopRecord();render();$('record-hint').textContent=e.message+' 可取消后重试，或手动选择。';}}
 }
 async function pollInput(){
-  if(inputPolling||!recording||stopped||document.hidden)return;inputPolling=true;
+  if(inputPolling||!recording||stopped||document.hidden)return;inputPolling=true;const id=recordId;
   try{
     const inputState=await api('/api/input/state',{client:inputClient},5000);
     const result=inputState.recording?.result;
     if(recording&&result?.id===recordId){if(result.error){stopRecord();render();$('record-hint').textContent=result.error;}else finishRecord(result);}
-  }catch(e){if(recording){stopRecord();render();$('record-hint').textContent='录入连接中断：'+e.message;}}finally{inputPolling=false;}
+    else if(recording&&inputState.recording?.progress?.id===recordId)showRecordProgress(inputState.recording.progress);
+  }catch(e){if(recordId===id){stopRecord();render();$('record-hint').textContent='录入连接中断：'+e.message;}}finally{inputPolling=false;}
 }
 function describeVerification(v){
   if(v.state==='verified')return readToken?'已重新读取并核对一致。请切回蓝灯普通键盘模式使用；网页和托盘程序都可以关闭。':'上次写入已核对。要查看键盘现在的配置，请重新读取。';
@@ -144,10 +158,23 @@ $('confirm-repair').onclick=async()=>{
 $('record-button').onclick=startRecord;
 $('cancel-record').onclick=()=>{stopRecord();render();};
 $('record-dialog').addEventListener('cancel',()=>{stopRecord();render();});
-document.addEventListener('keydown',e=>{if(!recording)return;e.preventDefault();e.stopImmediatePropagation();if(!recordReady||e.repeat)return;const result=C.fromEvent(e);if(result.modifierOnly)return;if(result.error){$('record-status').textContent=result.error;return;}finishRecord(result);},true);
+const browserMods=e=>(e.ctrlKey?1:0)|(e.shiftKey?2:0)|(e.altKey?4:0)|(e.metaKey?8:0);
+document.addEventListener('keydown',e=>{
+  if(!recording)return;e.preventDefault();e.stopImmediatePropagation();if(!recordReady||recordGuarded||e.repeat)return;
+  webHeld.add(e.code||e.key);const result=C.fromEvent(e);
+  if(result.error){$('record-status').textContent=result.error;return;}
+  if(!result.modifierOnly&&!webChord)webChord={mod:result.mod,key:C.keyNumber(result.key)};
+  showRecordProgress(webChord||{mod:browserMods(e),key:null});
+},true);
+document.addEventListener('keyup',e=>{
+  if(!recording)return;e.preventDefault();e.stopImmediatePropagation();if(!recordReady||recordGuarded)return;
+  webHeld.delete(e.code||e.key);
+  if(webChord&&!webHeld.size&&!browserMods(e))finishRecord(webChord);
+  else showRecordProgress(webChord||{mod:browserMods(e),key:null});
+},true);
 window.addEventListener('blur',()=>{if(recording){stopRecord();render();$('record-hint').textContent='页面失去焦点，已取消录入。请重新点击录入并保持此页面在前台。';}});
 window.addEventListener('pagehide',()=>{clearInterval(inputTimer);inputTimer=null;if(recordId)fetch('/api/input/cancel',{method:'POST',headers:{'Content-Type':'application/json','X-Micro-Panel':'1'},body:JSON.stringify({client:inputClient,id:recordId}),keepalive:true}).catch(()=>{});});
-window.addEventListener('pageshow',()=>{if(!inputTimer&&!stopped){inputTimer=setInterval(pollInput,500);pollInput();}});
+window.addEventListener('pageshow',()=>{if(recording&&!inputTimer&&!stopped){inputTimer=setInterval(pollInput,50);pollInput();}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&recording){stopRecord();render();}if(!document.hidden)pollInput();});
 window.addEventListener('beforeunload',e=>{if(!stopped&&(busy||changed().length)){e.preventDefault();e.returnValue='';}});
 $('import-button').onclick=()=>$('import-file').click();
@@ -183,10 +210,9 @@ $('quit-button').onclick=async()=>{
   try{await api('/api/quit');stopped=true;stopRecord();$('quit-button').disabled=true;notify('Micro Windows 已退出。已保存到键盘的配置可以继续使用。');render();}catch(e){notify(e.message,true);}
 };
 render();
-inputTimer=setInterval(pollInput,500);pollInput();
 try{
   const response=await fetch('/api/device/status',{cache:'no-store'}),value=await response.json();
-  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.3 版。');
+  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.4 版。');
   simulation=Boolean(value.simulation);$('simulation-banner').hidden=!simulation;$('layout-simulation').hidden=!simulation;verification=value;
   const message=describeVerification(value);if(message)notify(message);
   if(value.localRemappingEnabled)notify((message?message+'\n':'')+'原来的 Codex 本机映射仍已启用，可在“Codex 模式”页面单独关闭。');

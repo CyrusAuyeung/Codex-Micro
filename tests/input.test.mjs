@@ -33,6 +33,31 @@ test('abandoned recording sessions expire and stop the capture request',async t=
   const {input}=fake(t),client=randomUUID();
   await input.begin(client,randomUUID());input.clients.set(client,0);input.tick();assert.equal(input.session,null);
 });
+test('live preview exposes modifiers and the main key before completion, only to the recording page',async t=>{
+  const {input}=fake(t),client=randomUUID(),other=randomUUID(),id=randomUUID();
+  await input.begin(client,id);assert.equal(input.session.progress,null);
+  for(const [mod,key] of [[1,null],[3,null],[0,null],[4,null],[4,4]]){
+    input.ingest({kind:'progress',id,mod,key});
+    const state=await input.state(client);
+    assert.deepEqual(state.recording.progress,{id,mod,key});assert.equal(state.recording.result,null);
+    assert.equal((await input.state(other)).recording,null);
+  }
+  input.ingest({kind:'recorded',id,mod:4,key:4});
+  assert.deepEqual(input.session.result,{id,mod:4,key:4});assert.equal(input.session.progress,null);
+  input.ingest({kind:'progress',id,mod:0,key:null});assert.equal(input.session.progress,null);
+});
+test('preview rejects invalid, unarmed, cancelled, expired and previous-session events',async t=>{
+  const {input}=fake(t),client=randomUUID(),id=randomUUID();await input.begin(client,id);
+  input.session.armed=false;input.ingest({kind:'progress',id,mod:1,key:null});assert.equal(input.session.progress,null);input.session.armed=true;
+  for(const value of [{mod:-1,key:4},{mod:256,key:4},{mod:'4',key:4},{mod:4,key:'4'},{mod:4},{mod:4,key:-1},{mod:4,key:65536},{mod:4,key:4,id:randomUUID()}]){
+    input.ingest({kind:'progress',id,...value});assert.equal(input.session.progress,null);
+  }
+  input.ingest({kind:'progress',id,mod:64,key:4});assert.deepEqual(input.session.progress,{id,mod:64,key:4});
+  input.cancel(client,id);input.ingest({kind:'progress',id,mod:1,key:6});assert.equal(input.session,null);
+  const next=randomUUID();await input.begin(client,next);assert.equal(input.session.progress,null);
+  input.ingest({kind:'progress',id,mod:1,key:6});assert.equal(input.session.progress,null);
+  input.session.expires=0;input.ingest({kind:'progress',id:next,mod:1,key:6});assert.equal(input.session.progress,null);
+});
 test('idle pages do not launch the worker; simulation cannot capture real keyboards',async t=>{
   const input=new KeyboardInput({simulation:true,helper:''});t.after(()=>input.close());
   const client=randomUUID(),state=await input.state(client);assert.equal(input.native,null);assert.equal(state.ready,false);assert.equal(state.recording,null);

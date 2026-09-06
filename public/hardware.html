@@ -9,7 +9,7 @@
 <body>
   <main class="shell hardware-shell">
     <header class="masthead">
-      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / WINDOWS 1.1.3</div><h1>把顺手，留在键盘里。</h1></div></div>
+      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / WINDOWS 1.1.4</div><h1>把顺手，留在键盘里。</h1></div></div>
       <div class="connection"><span id="connection-state" class="status wait">尚未读取键盘</span><span class="local-note">普通键盘模式 · 保存到设备</span></div>
     </header>
     <nav class="mode-tabs" aria-label="配置方式"><a href="/" aria-current="page">普通键盘 <span>保存到设备</span></a><a href="/codex">Codex 模式 <span>本机改键</span></a></nav>
@@ -49,7 +49,7 @@
     <footer class="footer"><span>设备配置：核对后可关闭整个程序</span><button id="quit-button" class="text-button">退出 Micro Windows</button><span>WINDOWS EDITION</span></footer>
   </main>
   <dialog id="save-dialog" aria-labelledby="save-title"><h2 id="save-title">确认写入这些修改</h2><p>写入前会自动备份当前配置。保存后键盘可能重启；重新进入 Config 热点并读取，核对保存结果。</p><div id="change-list"></div><div class="dialog-actions"><button id="cancel-save" class="button">继续编辑</button><button id="confirm-save" class="button primary">确认写入键盘</button></div></dialog>
-  <dialog id="record-dialog" aria-labelledby="record-title"><h2 id="record-title">按下想录入的组合键</h2><p>请在电脑键盘上按一次，例如 Ctrl + Shift + K。</p><input id="record-target" aria-label="组合键录入框" autocomplete="off" inputmode="none" readonly placeholder="等待按键…"><p id="record-status" role="status">支持中文输入法下的物理按键录入。系统保留组合键仍可能被 Windows 响应，可用手动选择。</p><div class="dialog-actions"><button id="cancel-record" class="button">取消录入</button></div></dialog>
+  <dialog id="record-dialog" aria-labelledby="record-title"><h2 id="record-title">按下想录入的组合键</h2><p>按下时实时显示，例如 Ctrl → Ctrl + Shift → Ctrl + Shift + K。全部松开后完成录入。</p><input id="record-target" aria-label="组合键录入框" aria-describedby="record-status" autocomplete="off" inputmode="none" readonly placeholder="等待按键…"><p id="record-status" role="status">请等待拦截就绪，再按组合键。</p><div class="dialog-actions"><button id="cancel-record" class="button">取消录入</button></div></dialog>
   <dialog id="export-dialog" aria-labelledby="export-title"><h2 id="export-title">导出配置</h2><p id="export-hint"></p><label for="export-json">配置 JSON</label><textarea id="export-json" spellcheck="false" readonly></textarea><p id="export-status" role="status"></p><div class="dialog-actions"><button id="close-export" class="button">完成</button><button id="copy-export" class="button">复制 JSON</button><button id="download-export" class="button primary">下载 JSON</button></div></dialog>
   <dialog id="repair-dialog" aria-labelledby="repair-title"><h2 id="repair-title">修复这次配置连接</h2><p>电脑已连上键盘热点，但没有获得可用的 IP。修复会为这条连接临时补上地址，随后重新检查键盘。</p><p>此操作需要允许 Windows 管理员权限提示。切回其他 Wi-Fi 时自动移除，单次最长保留 30 分钟。</p><p class="field-help">仅处理 Codex Micro Config；保留自动获取 IP、默认网关和 DNS。临时地址仅供本程序访问键盘。</p><div class="dialog-actions"><button id="cancel-repair" class="button">取消</button><button id="confirm-repair" class="button primary">启动临时修复</button></div></dialog>
 </body>

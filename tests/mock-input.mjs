@@ -9,6 +9,7 @@ createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line)
 setInterval(async()=>{
   if(!process.env.MICRO_WINDOWS_INPUT_EVENTS)return;
   try{const event=JSON.parse(await readFile(process.env.MICRO_WINDOWS_INPUT_EVENTS,'utf8'));if(!event.id||event.id===last)return;last=event.id;
+    if(event.progress&&record)emit({kind:'progress',id:record,...event.progress});
     if(event.recorded&&record){emit({kind:'recorded',id:record,...event.recorded});record=null;}
     if(event.status)emit({kind:'status',...event.status});
   }catch{}
