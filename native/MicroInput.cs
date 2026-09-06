@@ -54,7 +54,8 @@ internal static class MicroInput {
         int mainToken=-1;bool observed;
         internal bool Holding{get{return Mods!=0||blocked.Count>0;}}
         internal bool Finished{get{return observed&&!Holding;}}
-        internal int? PreviewKey{get{return mainToken>=0&&blocked.Contains(mainToken)?(int?)Key:null;}}
+        // Keep the recorded chord visible through releases; Holding tracks the physical state separately.
+        internal int? PreviewKey{get{return Key>=0?(int?)Key:null;}}
         readonly HashSet<int> blocked=new HashSet<int>();
         internal ChordCapture(int mods){Mods=mods;ChordMods=mods;observed=mods!=0;}
         internal bool Handle(int vk,int scan,int flags){
@@ -62,7 +63,7 @@ internal static class MicroInput {
             if(up){bool suppress=blocked.Remove(token);if(modifier!=0)Mods&=~modifier;return suppress;}
             if(!blocked.Add(token))return true; // Repeats cannot replace a more recently pressed main key.
             observed=true;
-            if(modifier!=0){Mods|=modifier;if(Key<0||PreviewKey!=null)ChordMods=Mods;}
+            if(modifier!=0){Mods|=modifier;if(Key<0||blocked.Contains(mainToken))ChordMods=Mods;}
             else{Key=KeyCode(vk,scan,flags);ChordMods=Mods;mainToken=token;}
             return true;
         }
@@ -74,7 +75,7 @@ internal static class MicroInput {
         ChordCapture round;
         internal Candidate Candidate;
         internal int Revision;
-        internal int PreviewMod{get{return round.Mods;}}
+        internal int PreviewMod{get{return round.ChordMods;}}
         internal int? PreviewKey{get{return round.PreviewKey;}}
         internal bool Holding{get{return round.Holding;}}
         internal CaptureSession(int mods){round=new ChordCapture(mods);}
@@ -150,27 +151,39 @@ internal static class MicroInput {
         Feed(single,new[]{0xA4,56,1});ExpectCandidate(single,4,0);
         foreach(bool reverse in new[]{false,true}){
             var pair=new CaptureSession(0);Feed(pair,new[]{0xA2,29,0},new[]{0xA4,56,0});
-            if(reverse)Feed(pair,new[]{0xA2,29,1},new[]{0xA4,56,1});else Feed(pair,new[]{0xA4,56,1},new[]{0xA2,29,1});
+            Feed(pair,reverse?new[]{0xA2,29,1}:new[]{0xA4,56,1});
+            Check(pair.PreviewMod==5&&pair.PreviewKey==null&&pair.Holding,"Releasing one modifier shortened the preview");
+            Feed(pair,reverse?new[]{0xA4,56,1}:new[]{0xA2,29,1});
             ExpectCandidate(pair,5,0);
         }
         var releases=new[]{new[]{0xA2,29,1},new[]{0xA4,56,1},new[]{65,30,1}};
         foreach(var order in new[]{new[]{0,1,2},new[]{0,2,1},new[]{1,0,2},new[]{1,2,0},new[]{2,0,1},new[]{2,1,0}}){
             var full=new CaptureSession(0);Feed(full,new[]{0xA2,29,0},new[]{0xA4,56,0},new[]{65,30,0});
-            foreach(int i in order)Feed(full,releases[i]);ExpectCandidate(full,5,4);
+            foreach(int i in order){Feed(full,releases[i]);if(full.Holding)Check(full.PreviewMod==5&&full.PreviewKey==4,"Partial release shortened the full chord preview");}ExpectCandidate(full,5,4);
         }
         var replace=new CaptureSession(0);Feed(replace,new[]{0xA4,56,0},new[]{65,30,0},new[]{65,30,1});
-        Check(replace.PreviewMod==4&&replace.PreviewKey==null&&replace.Candidate==null,"Released main key must leave a live Alt preview");
-        Feed(replace,new[]{66,48,0});Check(replace.PreviewKey==5,"B did not replace A immediately");
-        Feed(replace,new[]{66,48,1},new[]{0xA4,56,1});ExpectCandidate(replace,4,5);
+        Check(replace.PreviewMod==4&&replace.PreviewKey==4&&replace.Holding&&replace.Candidate==null,"Released A must keep the Alt+A preview");
+        Check(replace.ConfirmError(0)!=null,"Retained preview was mistaken for a released chord");
+        Feed(replace,new[]{66,48,0});Check(replace.PreviewMod==4&&replace.PreviewKey==5,"B did not replace A immediately");
+        Feed(replace,new[]{66,48,1});Check(replace.PreviewMod==4&&replace.PreviewKey==5&&replace.Holding,"Released B must keep the Alt+B preview");
+        Feed(replace,new[]{0xA4,56,1});ExpectCandidate(replace,4,5);
         var repeat=new CaptureSession(0);Feed(repeat,new[]{0xA4,56,0},new[]{65,30,0},new[]{66,48,0},new[]{65,30,0},new[]{65,30,1},new[]{66,48,1},new[]{0xA4,56,1});ExpectCandidate(repeat,4,5);
         var preHeld=new CaptureSession(1);Feed(preHeld,new[]{67,46,0},new[]{67,46,1});Check(preHeld.Holding&&preHeld.Candidate==null,"Pre-held Ctrl ended before release");
         Check(!preHeld.Handle(0xA2,29,1),"Pre-held release was swallowed");ExpectCandidate(preHeld,1,6);
         var repeated=new CaptureSession(0);Feed(repeated,new[]{0xA2,29,0},new[]{65,30,0},new[]{65,30,1},new[]{0xA2,29,1});ExpectCandidate(repeated,1,4);
         Feed(repeated,new[]{0xA4,56,0});Check(repeated.ConfirmError(1)!=null,"Confirmation accepted while a new round was held");
+        Check(repeated.PreviewMod==4&&repeated.PreviewKey==null,"A fresh round retained the previous main key");
         Feed(repeated,new[]{0xA4,56,1});ExpectCandidate(repeated,4,0);Check(repeated.Revision==2&&repeated.ConfirmError(1)!=null,"Stale preview could be confirmed");
         Feed(repeated,new[]{0xA2,29,0},new[]{0xA0,42,0},new[]{75,37,0},new[]{0xA2,29,1},new[]{75,37,1},new[]{0xA0,42,1});ExpectCandidate(repeated,3,14);Check(repeated.Revision==3,"Repeated rounds did not stay in the session");
         var right=new CaptureSession(0);Feed(right,new[]{0xA3,29,2},new[]{0xA5,56,2},new[]{0xA3,29,3},new[]{0xA5,56,3});ExpectCandidate(right,80,0);
-        var changeMod=new CaptureSession(0);Feed(changeMod,new[]{0xA2,29,0},new[]{65,30,0},new[]{0xA2,29,1},new[]{0xA4,56,0},new[]{0xA4,56,1},new[]{65,30,1});ExpectCandidate(changeMod,4,4);
+        var changeMod=new CaptureSession(0);Feed(changeMod,new[]{0xA2,29,0},new[]{65,30,0},new[]{0xA2,29,1});
+        Check(changeMod.PreviewMod==1&&changeMod.PreviewKey==4,"Releasing Ctrl shortened Ctrl+A");
+        Feed(changeMod,new[]{0xA4,56,0});Check(changeMod.PreviewMod==4&&changeMod.PreviewKey==4,"New modifier did not update the chord while A remained held");
+        Feed(changeMod,new[]{0xA4,56,1},new[]{65,30,1});ExpectCandidate(changeMod,4,4);
+        var releasedMain=new CaptureSession(0);Feed(releasedMain,new[]{0xA2,29,0},new[]{65,30,0},new[]{65,30,1},new[]{0xA4,56,0});
+        Check(releasedMain.PreviewMod==1&&releasedMain.PreviewKey==4,"A released main key incorrectly absorbed a later modifier");
+        Feed(releasedMain,new[]{66,48,0});Check(releasedMain.PreviewMod==5&&releasedMain.PreviewKey==5,"New main key did not use the currently held modifiers");
+        Feed(releasedMain,new[]{66,48,1},new[]{0xA4,56,1},new[]{0xA2,29,1});ExpectCandidate(releasedMain,5,5);
         var invalid=new CaptureSession(0);Feed(invalid,new[]{0xAF,0,0},new[]{0xAF,0,1});Check(invalid.Candidate.Error!=null&&invalid.ConfirmError(1)!=null,"Unknown key was recorded as a modifier-only chord");
         Feed(invalid,new[]{66,48,0},new[]{66,48,1});ExpectCandidate(invalid,0,5);
         Console.WriteLine("Input self-test passed: modifier-only chords, release order, main-key replacement, repeated rounds, confirmation and balanced suppression; no real keys injected or captured.");return 0;

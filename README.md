@@ -1,4 +1,4 @@
-# Micro Windows 1.1.5
+# Micro Windows 1.1.6
 
 适用于同款 Codex Micro 复刻键盘的 Windows 10 / 11 x64 配置工具。
 

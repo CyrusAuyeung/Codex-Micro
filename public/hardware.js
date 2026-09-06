@@ -32,13 +32,13 @@ function showRecordState(session){
     const {mod,key}=progress;
     value=mod||key!==null?C.parts({mod:[mod],key:[key===null?0:key]},0).join(' + '):'';
     if(key===0)value=(mod?value+' + ':'')+'未识别按键';
-    status=key===0?'此按键不能作为普通主键录入，请松开后重新试按。':key===null?(mod?'可继续补按其他键，或全部松开以保留修饰键组合。':'请松开其余按键，再查看这一轮组合。'):'可保持修饰键、更换主键。全部松开后保留这一轮的完整组合。';
+    status=key===0?'此按键不能作为普通主键录入，请松开后重新试按。':key===null?(mod?'可继续补按其他键；松开部分修饰键时，仍保留完整组合。':'请松开其余按键，再查看这一轮组合。'):'松开部分按键仍显示完整组合；保持修饰键、按下新主键即可替换。全部松开后可确认。';
   }else if(recordCandidate){
     value=recordCandidate.error?'未识别按键':C.parts({mod:[recordCandidate.mod],key:[recordCandidate.key]},0).join(' + ');
     status=recordCandidate.error||'已保留这一轮组合。可继续试按覆盖，或点击“使用此组合”。';
   }
   if($('record-target').value!==value)$('record-target').value=value;
-  $('record-preview-label').textContent=holding?'当前按下':recordCandidate?'待使用的组合':'实时预览';
+  $('record-preview-label').textContent=holding?'本轮组合':recordCandidate?'待使用的组合':'实时预览';
   $('confirm-record').disabled=recordConfirming||holding||!recordCandidate||Boolean(recordCandidate.error);
   if(recordConfirming)status='正在确认组合键并结束拦截…';
   if($('record-status').textContent!==status)$('record-status').textContent=status;
@@ -222,7 +222,7 @@ $('quit-button').onclick=async()=>{
 render();
 try{
   const response=await fetch('/api/device/status',{cache:'no-store'}),value=await response.json();
-  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.5 版。');
+  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.6 版。');
   simulation=Boolean(value.simulation);$('simulation-banner').hidden=!simulation;$('layout-simulation').hidden=!simulation;verification=value;
   const message=describeVerification(value);if(message)notify(message);
   if(value.localRemappingEnabled)notify((message?message+'\n':'')+'原来的 Codex 本机映射仍已启用，可在“Codex 模式”页面单独关闭。');
