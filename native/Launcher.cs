@@ -22,9 +22,9 @@ internal static class Launcher {
             }
         }catch{return null;}
     }
-    internal static bool Running(){return ServiceVersion()=="1.1.0";}
-    private static void WaitForPreviousLauncher(){
-        try{using(var previous=Mutex.OpenExisting("Local\\MicroWindowsLauncher")){
+    internal static bool Running(){return ServiceVersion()=="1.1.1";}
+    private static void WaitForPreviousLauncher(string version){
+        try{using(var previous=Mutex.OpenExisting(version=="1.0.0"?"Local\\MicroWindowsLauncher":"Local\\MicroWindowsLauncher11")){
             bool acquired=false;
             try{acquired=previous.WaitOne(6000);}catch(AbandonedMutexException){acquired=true;}
             finally{if(acquired)previous.ReleaseMutex();}
@@ -43,12 +43,13 @@ internal static class Launcher {
     private static void Log(object sender,DataReceivedEventArgs e){if(e.Data!=null)lock(logLock){log.WriteLine(DateTime.Now.ToString("s")+" "+e.Data);log.Flush();}}
     [STAThread] private static int Main(string[] args) {
         Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
-        if(args.Length==1&&args[0]=="--check-files")return File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"runtime/node.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"MicroHID.Windows.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"device-mapping.mjs"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"public/hardware.html"))?0:2;
+        if(args.Length==1&&args[0]=="--check-files")return File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"runtime/node.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"MicroHID.Windows.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"MicroNetwork.Windows.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"network.mjs"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"device-mapping.mjs"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"public/hardware.html"))?0:2;
         try {
             if(Running()){Open();return 0;}
-            // Only the known 1.0 service is retired automatically during this upgrade.
-            if(ServiceVersion()=="1.0.0"){Stop();WaitForPreviousLauncher();for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
-            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher11",out first)) {
+            // Retire only identified earlier versions of this same application.
+            var previousVersion=ServiceVersion();
+            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
+            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher111",out first)) {
                 if(!first){for(int i=0;i<30&&!Running();i++)Thread.Sleep(200);if(Running()){Open();return 0;}throw new Exception("另一个 Micro Windows 正在启动，请稍后重试。");}
                 string root=AppDomain.CurrentDomain.BaseDirectory,node=Path.Combine(root,"runtime/node.exe"),script=Path.Combine(root,"server.mjs");
                 if(!File.Exists(node)||!File.Exists(script)||!File.Exists(Path.Combine(root,"MicroHID.Windows.exe")))throw new Exception("文件不完整。请先解压整个 Micro Windows 文件夹，再双击启动程序。");

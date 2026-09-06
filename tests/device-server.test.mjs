@@ -21,7 +21,9 @@ test('ordinary keyboard API works independently of browser presence and never ca
   await until(async()=>(await fetch(origin+'/api/health')).ok);
   const html=await(await fetch(origin)).text();assert.match(html,/普通键盘配置/);assert.match(html,/hardware.js/);
   const status=await(await fetch(origin+'/api/device/status')).json();assert.equal(status.simulation,true);assert.equal(status.localRemappingEnabled,false);
-  for(const route of ['/api/device/read','/api/device/prepare','/api/device/commit']){const r=await fetch(origin+route,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);}
+  for(const route of ['/api/device/read','/api/device/prepare','/api/device/commit','/api/device/diagnose','/api/device/repair']){const r=await fetch(origin+route,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);}
+  const diagnostic=await post('/api/device/diagnose');assert.equal(diagnostic.ok,true);assert.equal(diagnostic.network.state,'simulation');assert.equal(mock.state.posts.length,0);
+  await post('/api/device/repair',{},400);assert.equal(mock.state.posts.length,0);
   assert.equal((await fetch(origin+'/api/device/commit')).status,404);
   const read=await post('/api/device/read'),draft=structuredClone(read.mapping);draft.key[1]='0x16';
   const review=await post('/api/device/prepare',{readToken:read.readToken,draft});assert.equal(mock.state.posts.length,0);

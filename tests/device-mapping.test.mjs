@@ -49,7 +49,8 @@ test('backup failure stops before POST and corrupted journal is preserved',async
   const broken=new DeviceMapping({data:bad});await assert.rejects(()=>broken.init(),/原文件已保留/);assert.equal(await readFile(file,'utf8'),'not json');
 });
 test('normal mode target is fixed; simulation only allows explicit local targets',async()=>{
+  const data=await mkdtemp(path.join(process.env.MICRO_TEST_ROOT||tmpdir(),'micro-network-isolation-'));
   assert.equal(new DeviceMapping({data:'unused'}).origin,'http://192.168.4.1');
   for(const args of [{testOrigin:'http://127.0.0.1:5555'},{simulation:true,testOrigin:'http://example.com'},{simulation:true,testOrigin:'http://127.0.0.1:5555/path'},{simulation:true,testOrigin:'http://a:b@127.0.0.1'}])assert.throws(()=>new DeviceMapping({data:'unused',...args}));
-  await assert.rejects(()=>new DeviceMapping({data:'unused',simulation:true}).read(),/不会访问真实键盘/);
+  await assert.rejects(()=>new DeviceMapping({data,simulation:true}).read(),/不会访问真实键盘/);
 });

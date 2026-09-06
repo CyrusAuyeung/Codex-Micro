@@ -3,6 +3,7 @@ import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {DeviceNetwork} from './network.mjs';
 const C=createRequire(import.meta.url)('./public/mapping-core.js');
 
 const DEVICE='http://192.168.4.1';
@@ -18,6 +19,7 @@ export class DeviceMapping {
       this.origin=url.origin;
     }
     this.simulation=Boolean(simulation);this.timeout=timeout;
+    this.network=new DeviceNetwork({data,simulation:this.simulation});
     this.dir=path.join(data,'device-config');this.journalFile=path.join(this.dir,'last-write.json');
     this.journal=null;this.reads=new Map();this.prepared=new Map();
   }
@@ -34,31 +36,39 @@ export class DeviceMapping {
     const j=this.journal;
     return {origin:this.origin,simulation:this.simulation,state:j?.state||'idle',attemptedAt:j?.attemptedAt||null,verifiedAt:j?.verifiedAt||null,backup:j?.backup||null,differences:j?.differences||[],error:j?.error||null};
   }
-  request(route,method='GET',body){
+  request(route,method='GET',body,localAddress){
     if(!this.origin)return Promise.reject(new Error('模拟设备未配置；测试模式不会访问真实键盘。'));
     const url=new URL(route,this.origin);
     return new Promise((resolve,reject)=>{
       const data=body===undefined?null:Buffer.from(JSON.stringify(body));let timer;
-      const req=http.request(url,{method,agent:false,headers:{Accept:route==='/'?'text/html':'application/json',...(data?{'Content-Type':'application/json','Content-Length':data.length}:{})}},res=>{
+      const req=http.request(url,{method,agent:false,family:4,localAddress,headers:{Accept:route==='/'?'text/html':'application/json',...(data?{'Content-Type':'application/json','Content-Length':data.length}:{})}},res=>{
         const chunks=[];let size=0;
         res.on('data',b=>{size+=b.length;if(size>262144)req.destroy(new Error('键盘响应过大，已停止读取。'));else chunks.push(b);});
-        res.on('error',reject);
+        res.on('error',e=>{clearTimeout(timer);reject(e);});
         res.on('end',()=>{
           clearTimeout(timer);
           if(res.statusCode<200||res.statusCode>=300){reject(new Error('键盘接口返回 HTTP '+res.statusCode+'，没有跟随重定向。'));return;}
           resolve(Buffer.concat(chunks).toString('utf8'));
         });
       });
-      timer=setTimeout(()=>req.destroy(new Error('连接键盘超时。请确认电脑能访问配置热点的 192.168.4.1。')),this.timeout);
+      timer=setTimeout(()=>req.destroy(Object.assign(new Error('键盘未在限定时间内响应。'),{code:'ETIMEDOUT'})),this.timeout);
       req.on('error',e=>{clearTimeout(timer);reject(e);});
       req.end(data);
     });
   }
   async current(){
-    const html=await this.request('/');
-    if(!/<title>\s*Codex Micro 键位配置\s*<\/title>/i.test(html)||!html.includes('/api/mapping'))throw new Error('目标地址不是已知的 Codex Micro 键位配置页。请进入 Config 配置模式，不要进入 OTA 模式。');
-    let value;try{value=JSON.parse(await this.request('/api/mapping'));}catch(e){if(e instanceof SyntaxError)throw new Error('键盘没有返回有效的配置 JSON。');throw e;}
-    return C.validate(value,false);
+    const network=await this.network.snapshot();
+    try{
+      if(['dhcp-missing','dhcp-pending','other-network','address-mismatch'].includes(network.state))throw Object.assign(new Error(network.detail),{code:'NETWORK_SETUP'});
+      const html=await this.request('/', 'GET', undefined,network.localAddress||undefined);
+      if(!/<title>\s*Codex Micro 键位配置\s*<\/title>/i.test(html)||!html.includes('/api/mapping'))throw new Error('目标地址不是已知的 Codex Micro 键位配置页。请进入 Config 配置模式，不要进入 OTA 模式。');
+      let value;try{value=JSON.parse(await this.request('/api/mapping','GET',undefined,network.localAddress||undefined));}catch(e){if(e instanceof SyntaxError)throw new Error('键盘没有返回有效的配置 JSON。');throw e;}
+      const mapping=C.validate(value,false);await this.network.record(network,{reachable:true,message:this.simulation?'已读取模拟配置接口。':'已读取真实配置接口。'});return mapping;
+    }catch(e){
+      const hints={ENETUNREACH:'Windows 没有可用的网络路径到达键盘。',EHOSTUNREACH:'Windows 无法到达键盘地址。',EADDRNOTAVAIL:'配置连接的 IP 已变化，请重新读取。',ETIMEDOUT:'已尝试连接，但键盘没有响应。请确认处于红灯 Config 模式，必要时重新进入该模式。',ECONNREFUSED:'键盘地址拒绝连接，请确认进入的是 Config 配置模式。'};
+      if(hints[e.code])e.message=hints[e.code]+' '+network.detail;
+      e.network=await this.network.record(network,{reachable:false,code:e.code||'DEVICE_RESPONSE',message:e.message});throw e;
+    }
   }
   trim(){
     const now=Date.now();
@@ -75,7 +85,7 @@ export class DeviceMapping {
     }
     const readAt=new Date().toISOString();await this.atomic(path.join(this.dir,'last-read.json'),{readAt,mapping});
     this.trim();const readToken=randomUUID();this.reads.set(readToken,{mapping:C.clone(mapping),expires:Date.now()+30*60*1000});
-    return {mapping,readToken,readAt,verification:this.status()};
+    return {mapping,readToken,readAt,verification:this.status(),network:this.network.last};
   }
   async prepare({readToken,draft}){
     this.trim();
@@ -101,7 +111,7 @@ export class DeviceMapping {
     this.reads.clear();this.prepared.clear();
     let response;
     try{
-      response=JSON.parse(await this.request('/api/mapping','POST',outgoing));
+      response=JSON.parse(await this.request('/api/mapping','POST',outgoing,this.network.last?.localAddress||undefined));
       if(!response||typeof response!=='object'||Array.isArray(response)||response.ok===false||response.success===false||response.error||response.status==='error')throw new Error('键盘保存响应未能确认。');
     }catch(e){
       await this.record({...journal,state:'uncertain',error:e.message});

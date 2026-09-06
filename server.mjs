@@ -153,12 +153,14 @@ const server=http.createServer(async(req,res)=>{
   if(req.headers.host!==`127.0.0.1:${PORT}`){sendJSON(res,403,{error:'仅允许本机访问。'});return;}
   try{
     const url=new URL(req.url,ORIGIN);
-    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.0',simulation,deviceMapping:true});return;}
+    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.1',simulation,deviceMapping:true});return;}
     if(req.method==='GET'&&url.pathname==='/api/device/status'){sendJSON(res,200,{app:APP,...deviceMapping.status(),localRemappingEnabled:state.enabled});return;}
     if(req.method==='GET'&&url.pathname==='/api/state'){startNative();sendJSON(res,200,{app:APP,status:status(),controls,actions,keys,bindings:state.bindings,defaults:{},savedKeyboardCount:0,learning:learning?{...learning,diagnostics:collector.diagnostics()}:null,latestLearn});return;}
     if(req.method==='POST'){
       if(req.headers.origin!==ORIGIN||req.headers['x-micro-panel']!=='1'){sendJSON(res,403,{error:'请从本机面板操作。'});return;}
       const b=await bodyJSON(req);
+      if(url.pathname==='/api/device/diagnose'){sendJSON(res,200,await exclusive(async()=>{try{await deviceMapping.current();return {ok:true,network:deviceMapping.network.last};}catch(e){return {ok:false,error:e.message,network:e.network||deviceMapping.network.last};}}));return;}
+      if(url.pathname==='/api/device/repair'){sendJSON(res,200,await deviceMapping.network.repair());return;}
       if(url.pathname==='/api/device/read'){sendJSON(res,200,await exclusive(()=>deviceMapping.read()));return;}
       if(url.pathname==='/api/device/prepare'){sendJSON(res,200,await exclusive(()=>deviceMapping.prepare(b)));return;}
       if(url.pathname==='/api/device/commit'){sendJSON(res,200,await exclusive(()=>deviceMapping.commit(b)));return;}
@@ -176,7 +178,7 @@ const server=http.createServer(async(req,res)=>{
     const file={'/':'hardware.html','/codex':'index.html','/app.js':'app.js','/style.css':'style.css','/hardware.js':'hardware.js','/hardware.css':'hardware.css','/mapping-core.js':'mapping-core.js'}[url.pathname];
     if(req.method!=='GET'||!file){sendJSON(res,404,{error:'页面不存在。'});return;}
     res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'}[path.extname(file)],'Cache-Control':'no-store'});res.end(await readFile(path.join(ROOT,'public',file)));
-  }catch(e){sendJSON(res,400,{error:e.message||'操作未完成。'});}
+  }catch(e){sendJSON(res,400,{error:e.message||'操作未完成。',...(e.network?{network:e.network}:{})});}
 });
 const heartbeat=setInterval(()=>{try{send({op:'heartbeat'});}catch{}},2000);
 async function shutdown(){if(shuttingDown)return;shuttingDown=true;clearInterval(heartbeat);clearTimeout(learningTimer);clearTimeout(settleTimer);release();try{send({op:'quit'});native.stdin.end();}catch{}server.close(()=>process.exit(0));setTimeout(()=>{native?.kill();process.exit(0);},1500).unref();}

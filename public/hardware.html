@@ -9,17 +9,18 @@
 <body>
   <main class="shell hardware-shell">
     <header class="masthead">
-      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / WINDOWS 1.1</div><h1>把顺手，留在键盘里。</h1></div></div>
+      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / WINDOWS 1.1.1</div><h1>把顺手，留在键盘里。</h1></div></div>
       <div class="connection"><span id="connection-state" class="status wait">尚未读取键盘</span><span class="local-note">普通键盘模式 · 保存到设备</span></div>
     </header>
     <nav class="mode-tabs" aria-label="配置方式"><a href="/" aria-current="page">普通键盘 <span>保存到设备</span></a><a href="/codex">Codex 模式 <span>本机改键</span></a></nav>
     <div id="simulation-banner" class="setup-banner" hidden><strong>模拟测试 · 本页没有连接或写入真实键盘</strong></div>
     <div class="device-intro"><div><span class="eyebrow">ON-DEVICE SETTINGS</span><h2>保存一次，随键盘生效。</h2><p>写入并核对后，网页和托盘程序都可以关闭。回到蓝灯普通键盘模式，以蓝牙连接 <strong>Codex Micro KB</strong> 使用。</p></div><span class="device-badge">无需后台常驻</span></div>
     <details class="connection-guide" open>
-      <summary>配置时如何连接 <span>CodexMicro Config · 192.168.4.1</span></summary>
-      <ol><li>长按左下触摸点，灯变红时松开，进入 <strong>Config 配置模式</strong>。</li><li>让这台电脑连接 <strong>CodexMicro Config</strong> 热点，再点击“读取键盘”。程序不会替你切换网络。</li><li>电脑要保持互联网连接，请先保留可用的网线或第二个网络通道。仅手机连接键盘热点，不能让本机程序访问键盘。</li></ol>
+      <summary>配置时如何连接 <span>Codex Micro Config · 192.168.4.1</span></summary>
+      <ol><li>长按左下触摸点，灯变红时松开，进入 <strong>Config 配置模式</strong>。</li><li>让这台电脑连接 <strong>Codex Micro Config</strong> 热点，再点击“读取键盘”。</li><li>电脑要保持互联网连接，请先保留可用的网线或第二个网络通道。仅手机连接键盘热点，不能让本机程序访问键盘。</li></ol>
       <p>这里只读写普通键位。无需进入青灯 Codex 模式，也无需进入 OTA 升级模式。</p>
     </details>
+    <section class="network-card" aria-labelledby="network-title"><div><strong id="network-title">连接检查</strong><p id="network-detail">读取失败时，会显示热点连接、IP 分配和设备响应的具体状态。</p><small id="network-time"></small></div><div class="toolbar-actions"><button id="diagnose-button" class="button">检查连接</button><button id="repair-button" class="button primary" hidden>临时修复连接</button></div></section>
     <div id="notice" class="device-notice" role="status" aria-live="polite" hidden></div>
     <div class="hardware-toolbar"><div><strong id="read-label">还没有设备配置</strong><span id="read-detail">可先编辑草稿；读取真实配置后才能写入。</span></div><div class="toolbar-actions"><button id="import-button" class="button">导入</button><button id="export-button" class="button">导出草稿</button><button id="read-button" class="button">读取键盘 <span aria-hidden="true">↻</span></button></div><input type="file" id="import-file" accept=".json,application/json" aria-label="导入键位 JSON" hidden></div>
     <div class="mapping-workspace">
@@ -31,5 +32,6 @@
   </main>
   <dialog id="save-dialog" aria-labelledby="save-title"><h2 id="save-title">确认写入这些修改</h2><p>写入前会自动备份当前配置。保存后键盘可能重启；重新进入 Config 热点并读取，核对保存结果。</p><div id="change-list"></div><div class="dialog-actions"><button id="cancel-save" class="button">继续编辑</button><button id="confirm-save" class="button primary">确认写入键盘</button></div></dialog>
   <dialog id="export-dialog" aria-labelledby="export-title"><h2 id="export-title">导出配置</h2><p id="export-hint"></p><label for="export-json">配置 JSON</label><textarea id="export-json" spellcheck="false" readonly></textarea><p id="export-status" role="status"></p><div class="dialog-actions"><button id="close-export" class="button">完成</button><button id="copy-export" class="button">复制 JSON</button><button id="download-export" class="button primary">下载 JSON</button></div></dialog>
+  <dialog id="repair-dialog" aria-labelledby="repair-title"><h2 id="repair-title">修复这次配置连接</h2><p>电脑已连上键盘热点，但没有获得可用的 IP。修复会为这条连接临时补上地址，随后重新检查键盘。</p><p>此操作需要允许 Windows 管理员权限提示。切回其他 Wi-Fi 时自动移除，单次最长保留 30 分钟。</p><p class="field-help">仅处理 Codex Micro Config；保留自动获取 IP、默认网关和 DNS。临时地址仅供本程序访问键盘。</p><div class="dialog-actions"><button id="cancel-repair" class="button">取消</button><button id="confirm-repair" class="button primary">启动临时修复</button></div></dialog>
 </body>
 </html>
