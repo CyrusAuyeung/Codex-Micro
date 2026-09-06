@@ -21,7 +21,9 @@ export function localCandidates(table=networkInterfaces()){
 }
 export function describeNetwork(adapters,candidates,helperError=null){
   const config=adapters.filter(a=>a.config),wifi=adapters.filter(a=>a.wireless),apipa=config.find(a=>a.dhcp&&a.addresses.length&&!a.addresses.some(x=>!x.startsWith('169.254.')));
-  const candidate=candidates.find(c=>config.some(a=>a.name===c.name))||candidates[0];
+  // A known keyboard Wi-Fi connection must use its own address, even when a VPN
+  // advertises a broader route covering the keyboard's subnet.
+  const candidate=config.length?candidates.find(c=>config.some(a=>a.name===c.name)):candidates[0];
   const base={checkedAt:new Date().toISOString(),target,adapters,localAddress:candidate?.address||null,interfaceName:candidate?.name||null,canRepair:false,helperError};
   if(candidate)return {...base,state:'address-ready',summary:candidate.address==='192.168.4.222'?'临时配置地址可用':'配置网段地址已就绪',detail:`通过 ${candidate.name}（${candidate.address}）访问键盘。仍需读取确认设备是否响应。`};
   if(apipa)return {...base,state:'dhcp-missing',summary:'热点已连接，IP 分配失败',canRepair:config.length===1,detail:`${apipa.name} 只有 ${apipa.addresses.join('、')||'尚未分配的 IPv4 地址'}，无法访问 ${target}。可点击“临时修复连接”，补上本次配置所需的地址。`};

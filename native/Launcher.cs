@@ -22,9 +22,14 @@ internal static class Launcher {
             }
         }catch{return null;}
     }
-    internal static bool Running(){return ServiceVersion()=="1.1.2";}
+    internal static bool Running(){return ServiceVersion()=="1.1.3";}
+    private static bool FilesReady(){
+        foreach(var name in new[]{"runtime/node.exe","MicroHID.Windows.exe","MicroNetwork.Windows.exe","MicroInput.Windows.exe","server.mjs","model.mjs","vendor.mjs","network.mjs","input.mjs","device-mapping.mjs","public/hardware.html","public/hardware.js","public/hardware.css","public/mapping-core.js","public/index.html","public/app.js","public/style.css"})
+            if(!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,name)))return false;
+        return true;
+    }
     private static void WaitForPreviousLauncher(string version){
-        string previousName=version=="1.0.0"?"Local\\MicroWindowsLauncher":version=="1.1.0"?"Local\\MicroWindowsLauncher11":"Local\\MicroWindowsLauncher111";
+        string previousName=version=="1.0.0"?"Local\\MicroWindowsLauncher":version=="1.1.0"?"Local\\MicroWindowsLauncher11":version=="1.1.1"?"Local\\MicroWindowsLauncher111":"Local\\MicroWindowsLauncher112";
         try{using(var previous=Mutex.OpenExisting(previousName)){
             bool acquired=false;
             try{acquired=previous.WaitOne(6000);}catch(AbandonedMutexException){acquired=true;}
@@ -44,21 +49,21 @@ internal static class Launcher {
     private static void Log(object sender,DataReceivedEventArgs e){if(e.Data!=null)lock(logLock){log.WriteLine(DateTime.Now.ToString("s")+" "+e.Data);log.Flush();}}
     [STAThread] private static int Main(string[] args) {
         Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
-        if(args.Length==1&&args[0]=="--check-files")return File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"runtime/node.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"MicroHID.Windows.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"MicroNetwork.Windows.exe"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"network.mjs"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"device-mapping.mjs"))&&File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"public/hardware.html"))?0:2;
+        if(args.Length==1&&args[0]=="--check-files")return FilesReady()?0:2;
         try {
             if(Running()){Open();return 0;}
             // Retire only identified earlier versions of this same application.
             var previousVersion=ServiceVersion();
-            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"||previousVersion=="1.1.1"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
-            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher112",out first)) {
+            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"||previousVersion=="1.1.1"||previousVersion=="1.1.2"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
+            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher113",out first)) {
                 if(!first){for(int i=0;i<30&&!Running();i++)Thread.Sleep(200);if(Running()){Open();return 0;}throw new Exception("另一个 Micro Windows 正在启动，请稍后重试。");}
                 string root=AppDomain.CurrentDomain.BaseDirectory,node=Path.Combine(root,"runtime/node.exe"),script=Path.Combine(root,"server.mjs");
-                if(!File.Exists(node)||!File.Exists(script)||!File.Exists(Path.Combine(root,"MicroHID.Windows.exe")))throw new Exception("文件不完整。请先解压整个 Micro Windows 文件夹，再双击启动程序。");
+                if(!FilesReady())throw new Exception("文件不完整。请先解压整个 Micro Windows 文件夹，再双击启动程序。");
                 string data=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Micro Windows");Directory.CreateDirectory(data);
                 log=new StreamWriter(Path.Combine(data,"panel.log"),true,new UTF8Encoding(false));
                 var start=new ProcessStartInfo(node,"\""+script+"\""){WorkingDirectory=root,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};
                 start.EnvironmentVariables["MICRO_WINDOWS_DATA"]=data;start.EnvironmentVariables["MICRO_WINDOWS_PORT"]="18414";
-                start.EnvironmentVariables.Remove("MICRO_WINDOWS_TEST");start.EnvironmentVariables.Remove("MICRO_WINDOWS_HELPER");start.EnvironmentVariables.Remove("MICRO_WINDOWS_DEVICE_ORIGIN");
+                start.EnvironmentVariables.Remove("MICRO_WINDOWS_TEST");start.EnvironmentVariables.Remove("MICRO_WINDOWS_HELPER");start.EnvironmentVariables.Remove("MICRO_WINDOWS_DEVICE_ORIGIN");start.EnvironmentVariables.Remove("MICRO_WINDOWS_INPUT_HELPER");
                 server=new Process{StartInfo=start};server.OutputDataReceived+=Log;server.ErrorDataReceived+=Log;server.Start();server.BeginOutputReadLine();server.BeginErrorReadLine();
                 for(int i=0;i<50&&!Running();i++){if(server.HasExited)throw new Exception("本地服务启动失败。日志："+Path.Combine(data,"panel.log"));Thread.Sleep(150);}
                 if(!Running()){if(!server.HasExited)server.Kill();throw new Exception("本地服务未就绪，端口 18414 可能被占用。日志："+Path.Combine(data,"panel.log"));}

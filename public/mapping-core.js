@@ -63,10 +63,15 @@
     return result;
   }
   function fromEvent(e) {
-    if(e.isComposing) return {error:'正在使用输入法，请结束输入后重新录入。'};
-    if(/^(Control|Shift|Alt|Meta)(Left|Right)$/.test(e.code)) return {modifierOnly:true};
-    const item=keys.find(k=>k.code===e.code && k.code!=='');
-    if(!item) return {error:'未识别这个按键，请用下方选项手动设置。'};
+    if(/^(Control|Shift|Alt|Meta)(Left|Right)$/.test(e.code)||['Control','Shift','Alt','Meta'].includes(e.key)) return {modifierOnly:true};
+    if(e.key==='Fn'||e.key==='FnLock'||e.code==='Fn')return {error:'Fn 通常由键盘内部处理。请录入它实际输出的功能键，或手动选择 F1–F24。'};
+    // IMEs may report key="Process" while code still identifies the physical key.
+    let item=keys.find(k=>k.code===e.code && k.code!=='');
+    if(!item&&typeof e.key==='string'){
+      const code=/^[a-z]$/i.test(e.key)?'Key'+e.key.toUpperCase():/^[0-9]$/.test(e.key)?'Digit'+e.key:e.key===' '?'Space':e.key;
+      item=keys.find(k=>k.code===code&&k.code!=='');
+    }
+    if(!item) return {error:e.isComposing?'等待 Windows 按键检测，或切换到英文输入后重试。':'未识别这个按键。请保持录入框焦点，再按一次；系统保留组合键可手动选择。'};
     return {key:hex(item.n), mod:(e.ctrlKey?1:0)|(e.shiftKey?2:0)|(e.altKey?4:0)|(e.metaKey?8:0)};
   }
   function parseImport(text) {

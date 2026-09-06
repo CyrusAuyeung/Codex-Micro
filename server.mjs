@@ -9,6 +9,7 @@ import {randomUUID} from 'node:crypto';
 import {controls,actions,keys,destination,sourceSignature,CaptureCollector,validateBindings} from './model.mjs';
 import {VendorDecoder,VendorInputs,windowsEvent} from './vendor.mjs';
 import {DeviceMapping} from './device-mapping.mjs';
+import {KeyboardInput} from './input.mjs';
 
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 const DATA=process.env.MICRO_WINDOWS_DATA||path.join(process.env.LOCALAPPDATA||path.join(homedir(),'AppData/Local'),'Micro Windows');
@@ -20,6 +21,7 @@ const simulation=process.env.MICRO_WINDOWS_TEST==='1';
 await mkdir(DATA,{recursive:true});
 const deviceMapping=new DeviceMapping({data:DATA,simulation,testOrigin:process.env.MICRO_WINDOWS_DEVICE_ORIGIN});
 await deviceMapping.init();
+const keyboardInput=new KeyboardInput({data:DATA,simulation});
 let state={version:1,bindings:{},device:null,enabled:false};
 try{state=JSON.parse(await readFile(STORE,'utf8'));}catch(e){if(e.code!=='ENOENT')throw new Error('配置无法读取，原文件已保留：'+e.message);}
 if(state.version!==1||typeof state.enabled!=='boolean')throw new Error('配置版本或启用状态无效，原文件已保留。');
@@ -153,12 +155,15 @@ const server=http.createServer(async(req,res)=>{
   if(req.headers.host!==`127.0.0.1:${PORT}`){sendJSON(res,403,{error:'仅允许本机访问。'});return;}
   try{
     const url=new URL(req.url,ORIGIN);
-    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.2',simulation,deviceMapping:true});return;}
+    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.3',simulation,deviceMapping:true});return;}
     if(req.method==='GET'&&url.pathname==='/api/device/status'){sendJSON(res,200,{app:APP,...deviceMapping.status(),localRemappingEnabled:state.enabled});return;}
     if(req.method==='GET'&&url.pathname==='/api/state'){startNative();sendJSON(res,200,{app:APP,status:status(),controls,actions,keys,bindings:state.bindings,defaults:{},savedKeyboardCount:0,learning:learning?{...learning,diagnostics:collector.diagnostics()}:null,latestLearn});return;}
     if(req.method==='POST'){
       if(req.headers.origin!==ORIGIN||req.headers['x-micro-panel']!=='1'){sendJSON(res,403,{error:'请从本机面板操作。'});return;}
       const b=await bodyJSON(req);
+      if(url.pathname==='/api/input/state'){sendJSON(res,200,await keyboardInput.state(b.client));return;}
+      if(url.pathname==='/api/input/record'){sendJSON(res,200,await keyboardInput.begin(b.client,b.id));return;}
+      if(url.pathname==='/api/input/cancel'){keyboardInput.cancel(b.client,b.id);sendJSON(res,200,{ok:true});return;}
       if(url.pathname==='/api/device/diagnose'){sendJSON(res,200,await exclusive(async()=>{try{await deviceMapping.current();return {ok:true,network:deviceMapping.network.last};}catch(e){return {ok:false,error:e.message,network:e.network||deviceMapping.network.last};}}));return;}
       if(url.pathname==='/api/device/repair'){sendJSON(res,200,await deviceMapping.network.repair());return;}
       if(url.pathname==='/api/device/read'){sendJSON(res,200,await exclusive(()=>deviceMapping.read()));return;}
@@ -181,7 +186,7 @@ const server=http.createServer(async(req,res)=>{
   }catch(e){sendJSON(res,400,{error:e.message||'操作未完成。',...(e.network?{network:e.network}:{})});}
 });
 const heartbeat=setInterval(()=>{try{send({op:'heartbeat'});}catch{}},2000);
-async function shutdown(){if(shuttingDown)return;shuttingDown=true;clearInterval(heartbeat);clearTimeout(learningTimer);clearTimeout(settleTimer);release();try{send({op:'quit'});native.stdin.end();}catch{}server.close(()=>process.exit(0));setTimeout(()=>{native?.kill();process.exit(0);},1500).unref();}
+async function shutdown(){if(shuttingDown)return;shuttingDown=true;keyboardInput.close();clearInterval(heartbeat);clearTimeout(learningTimer);clearTimeout(settleTimer);release();try{send({op:'quit'});native.stdin.end();}catch{}server.close(()=>process.exit(0));setTimeout(()=>{native?.kill();process.exit(0);},1500).unref();}
 server.listen(PORT,'127.0.0.1',()=>{if(state.enabled)startNative();console.log(`Micro Windows: ${ORIGIN}${simulation?' [SIMULATION]':''}`);});
 server.on('error',e=>{console.error(e.message);process.exit(1);});
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,shutdown);

@@ -17,6 +17,15 @@ test('device requests bind only to an IPv4 address on the destination subnet, pr
   const candidates=localCandidates(table);assert.deepEqual(candidates.map(x=>x.address),['192.168.4.222','192.168.10.3']);
   const r=describeNetwork([wifi(['169.254.243.61','192.168.4.222'])],candidates);assert.equal(r.localAddress,'192.168.4.222');assert.equal(r.state,'address-ready');assert.equal(r.canRepair,false);
 });
+test('overlapping VPN routes cannot hide missing DHCP or a pending address on the connected keyboard hotspot',()=>{
+  const candidates=localCandidates({VPN:[entry('192.168.10.3','255.255.0.0')]});
+  for(const [addresses,state,canRepair] of [[['169.254.10.20'],'dhcp-missing',true],[[],'dhcp-pending',false],[['10.20.30.40'],'address-mismatch',false]]){
+    const result=describeNetwork([wifi(addresses)],candidates);
+    assert.equal(result.state,state);assert.equal(result.localAddress,null);assert.equal(result.canRepair,canRepair);
+  }
+  const restored=describeNetwork([wifi(['192.168.4.2'])],localCandidates({VPN:[entry('192.168.10.3','255.255.0.0')],WLAN:[entry('192.168.4.2')]}));
+  assert.equal(restored.localAddress,'192.168.4.2');assert.equal(restored.state,'address-ready');
+});
 test('failed DHCP stops before HTTP, reports evidence, and a new attempt redetects the connection',async()=>{
   const s=new DeviceMapping({data:'unused',simulation:true});let calls=[];
   s.network.snapshot=async()=>describeNetwork([wifi(['169.254.243.61'])],[]);
