@@ -11,9 +11,11 @@
   <main class="shell">
     <header class="masthead">
       <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / Windows</div><h1>让每一键，顺手。</h1></div></div>
-      <div class="connection"><span id="connection-state" class="status wait">正在连接本地服务</span><span class="local-note">本机配置 · 无需切换 Wi-Fi</span></div>
+      <div class="connection"><span id="connection-state" class="status wait">正在连接本地服务</span><span class="local-note">Codex 本机改键 · 后台运行时生效</span></div>
     </header>
 
+    <p><a class="text-button" href="/">← 普通键盘 · 保存到设备</a></p>
+    <div class="mode-banner"><div><strong>这里是 Codex 模式的本机改键</strong><p>关闭网页后，托盘后台仍会执行映射；退出后台后停止。要让普通键盘模式在退出程序后继续生效，请使用“保存到设备”页面。</p></div></div>
     <div id="simulation-banner" class="setup-banner" hidden><strong>模拟测试 · 当前没有连接或控制真实键盘</strong></div>
     <div id="setup-banner" class="setup-banner" hidden><div><strong>连接与设备状态</strong><p id="setup-message">请通过 Windows 蓝牙连接小键盘，并切到青灯 Codex 模式。</p></div><button id="confirm-device" class="button subtle" hidden>确认当前小键盘</button><button id="open-setup" class="button subtle">打开蓝牙设置 <span aria-hidden="true">↗</span></button></div>
     <div id="mode-banner" class="mode-banner" hidden><div><strong id="mode-label"></strong><p id="mode-message"></p><p id="preserved-message"></p></div><button id="mode-toggle" class="button subtle">启用 Windows 自定义</button></div>
@@ -53,7 +55,7 @@
         <div class="editor-bottom"><button id="save-button" class="button primary" disabled>应用到这个按键 <span aria-hidden="true">↗</span></button><button id="restore-button" class="text-button restore" disabled>恢复这个位置的原功能</button><p class="save-note">设置保存在这台电脑 · 仅作用于这个小键盘</p></div>
       </section>
     </div>
-    <footer class="footer"><span>青灯 Codex 模式 · 设置保存在此电脑 · 无需切换 Wi-Fi</span><button id="quit-button" class="text-button">退出 Micro Windows</button><span>WINDOWS EDITION</span></footer>
+    <footer class="footer"><span>本机映射：网页可关闭，托盘后台需运行</span><button id="quit-button" class="text-button">退出 Micro Windows</button><span>WINDOWS EDITION</span></footer>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>

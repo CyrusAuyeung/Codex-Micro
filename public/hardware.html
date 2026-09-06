@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Micro Windows · 普通键盘配置</title>
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/hardware.css">
+  <script type="module" src="/hardware.js"></script>
+</head>
+<body>
+  <main class="shell hardware-shell">
+    <header class="masthead">
+      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / WINDOWS 1.1</div><h1>把顺手，留在键盘里。</h1></div></div>
+      <div class="connection"><span id="connection-state" class="status wait">尚未读取键盘</span><span class="local-note">普通键盘模式 · 保存到设备</span></div>
+    </header>
+    <nav class="mode-tabs" aria-label="配置方式"><a href="/" aria-current="page">普通键盘 <span>保存到设备</span></a><a href="/codex">Codex 模式 <span>本机改键</span></a></nav>
+    <div id="simulation-banner" class="setup-banner" hidden><strong>模拟测试 · 本页没有连接或写入真实键盘</strong></div>
+    <div class="device-intro"><div><span class="eyebrow">ON-DEVICE SETTINGS</span><h2>保存一次，随键盘生效。</h2><p>写入并核对后，网页和托盘程序都可以关闭。回到蓝灯普通键盘模式，以蓝牙连接 <strong>Codex Micro KB</strong> 使用。</p></div><span class="device-badge">无需后台常驻</span></div>
+    <details class="connection-guide" open>
+      <summary>配置时如何连接 <span>CodexMicro Config · 192.168.4.1</span></summary>
+      <ol><li>长按左下触摸点，灯变红时松开，进入 <strong>Config 配置模式</strong>。</li><li>让这台电脑连接 <strong>CodexMicro Config</strong> 热点，再点击“读取键盘”。程序不会替你切换网络。</li><li>电脑要保持互联网连接，请先保留可用的网线或第二个网络通道。仅手机连接键盘热点，不能让本机程序访问键盘。</li></ol>
+      <p>这里只读写普通键位。无需进入青灯 Codex 模式，也无需进入 OTA 升级模式。</p>
+    </details>
+    <div id="notice" class="device-notice" role="status" aria-live="polite" hidden></div>
+    <div class="hardware-toolbar"><div><strong id="read-label">还没有设备配置</strong><span id="read-detail">可先编辑草稿；读取真实配置后才能写入。</span></div><div class="toolbar-actions"><button id="import-button" class="button">导入</button><button id="export-button" class="button">导出草稿</button><button id="read-button" class="button">读取键盘 <span aria-hidden="true">↻</span></button></div><input type="file" id="import-file" accept=".json,application/json" aria-label="导入键位 JSON" hidden></div>
+    <div class="mapping-workspace">
+      <section class="mapping-board" aria-labelledby="board-title"><div class="section-head"><div><span class="eyebrow">01 / 选择配置位</span><h2 id="board-title">你的普通键位</h2></div><span id="change-count" class="count">0 项修改</span></div><div id="mapping-grid" class="mapping-grid" role="group" aria-label="固件的 16 个配置位"></div><div class="mapping-legend"><span><i></i>当前选择</span><span><i class="changed"></i>尚未写入</span></div><p class="mapping-caption">编号与键盘原配置页一致。旋钮方向、摇杆方向等未公开的配置不在本页范围内；未命名位置与 MODE 保留原编号。</p></section>
+      <section class="mapping-editor" aria-labelledby="selected-label"><div class="editor-heading"><span class="eyebrow">02 / 设置快捷键</span><h2 id="selected-label">AG00 <small>#1</small></h2><p>编辑所选配置位，保存时一起写入。</p></div><div id="shortcut-preview" class="hardware-shortcut" aria-live="polite">未读取</div><div id="quick-actions" class="hardware-presets" aria-label="常用快捷键"></div><button id="record-button" class="button">录入组合键</button><p id="record-hint" class="field-help">点击后，在电脑键盘上输入组合键；系统保留组合键可手动选择。</p><fieldset class="hardware-modifiers"><legend>修饰键 · 可以多选</legend><div id="modifier-choices"></div></fieldset><p id="right-modifiers" class="field-help" hidden></p><label for="key-select" class="field-label">主键</label><select id="key-select"></select><div class="restore-line"><button id="restore-button" class="text-button" disabled>还原此键</button><span id="raw-value" class="field-help">尚未读取</span></div><p class="field-help editor-note">未读取的位置不会被猜成默认值。蓝牙连接名称只用于使用时辨认；本页不会改名或切换蓝牙模式。</p></section>
+    </div>
+    <div class="hardware-actions"><div><strong id="save-state">尚未写入键盘</strong><p id="save-detail">读取 → 编辑 → 预览修改 → 写入 → 重新读取核对</p></div><div class="toolbar-actions"><button id="undo-button" class="button" disabled>撤销修改</button><button id="save-button" class="button primary" disabled>预览并保存 <span aria-hidden="true">↗</span></button></div></div>
+    <footer class="footer"><span>设备配置：核对后可关闭整个程序</span><button id="quit-button" class="text-button">退出 Micro Windows</button><span>WINDOWS EDITION</span></footer>
+  </main>
+  <dialog id="save-dialog" aria-labelledby="save-title"><h2 id="save-title">确认写入这些修改</h2><p>写入前会自动备份当前配置。保存后键盘可能重启；重新进入 Config 热点并读取，核对保存结果。</p><div id="change-list"></div><div class="dialog-actions"><button id="cancel-save" class="button">继续编辑</button><button id="confirm-save" class="button primary">确认写入键盘</button></div></dialog>
+  <dialog id="export-dialog" aria-labelledby="export-title"><h2 id="export-title">导出配置</h2><p id="export-hint"></p><label for="export-json">配置 JSON</label><textarea id="export-json" spellcheck="false" readonly></textarea><p id="export-status" role="status"></p><div class="dialog-actions"><button id="close-export" class="button">完成</button><button id="copy-export" class="button">复制 JSON</button><button id="download-export" class="button primary">下载 JSON</button></div></dialog>
+</body>
+</html>

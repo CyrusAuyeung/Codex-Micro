@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {controls,actions,keys,destination,sourceSignature,CaptureCollector,validateBindings} from './model.mjs';
 import {VendorDecoder,VendorInputs,windowsEvent} from './vendor.mjs';
+import {DeviceMapping} from './device-mapping.mjs';
 
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 const DATA=process.env.MICRO_WINDOWS_DATA||path.join(process.env.LOCALAPPDATA||path.join(homedir(),'AppData/Local'),'Micro Windows');
@@ -17,6 +18,8 @@ if(!Number.isInteger(PORT)||PORT<1024||PORT>65535)throw new Error('Invalid local
 const ORIGIN=`http://127.0.0.1:${PORT}`,APP='codex-micro-windows-panel';
 const simulation=process.env.MICRO_WINDOWS_TEST==='1';
 await mkdir(DATA,{recursive:true});
+const deviceMapping=new DeviceMapping({data:DATA,simulation,testOrigin:process.env.MICRO_WINDOWS_DEVICE_ORIGIN});
+await deviceMapping.init();
 let state={version:1,bindings:{},device:null,enabled:false};
 try{state=JSON.parse(await readFile(STORE,'utf8'));}catch(e){if(e.code!=='ENOENT')throw new Error('配置无法读取，原文件已保留：'+e.message);}
 if(state.version!==1||typeof state.enabled!=='boolean')throw new Error('配置版本或启用状态无效，原文件已保留。');
@@ -55,7 +58,9 @@ function event(event){
   const output=windowsEvent(destination(binding));if(output){held.set(event.code,output);send({...output,id:event.code,down:true});}
 }
 function startNative(){
+  if(native)return;
   const fixture=simulation?process.env.MICRO_WINDOWS_HELPER:null;
+  if(simulation&&!fixture){nativeStatus={connected:false,error:'模拟 HID 辅助程序未配置，未访问真实蓝牙设备。'};return;}
   native=spawn(fixture?process.execPath:path.join(ROOT,'MicroHID.Windows.exe'),fixture?[fixture]:[],{stdio:['pipe','pipe','pipe'],windowsHide:true,cwd:ROOT});
   createInterface({input:native.stdout}).on('line',line=>{
     let m;try{m=JSON.parse(line);}catch{return;}
@@ -142,17 +147,21 @@ async function confirmDevice(){
   await persist({...structuredClone(state),device:structuredClone(nativeStatus.device),enabled:false});lastOutputError=null;
 }
 const sendJSON=(res,code,value)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
-async function bodyJSON(req){let body='',size=0;for await(const chunk of req){size+=chunk.length;if(size>10000)throw new Error('请求过大。');body+=chunk;}const result=JSON.parse(body||'{}');if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('请求格式无效。');return result;}
+async function bodyJSON(req){let body='',size=0;for await(const chunk of req){size+=chunk.length;if(size>65536)throw new Error('请求过大。');body+=chunk;}const result=JSON.parse(body||'{}');if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('请求格式无效。');return result;}
 const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
   if(req.headers.host!==`127.0.0.1:${PORT}`){sendJSON(res,403,{error:'仅允许本机访问。'});return;}
   try{
     const url=new URL(req.url,ORIGIN);
-    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.0.0',simulation});return;}
-    if(req.method==='GET'&&url.pathname==='/api/state'){sendJSON(res,200,{app:APP,status:status(),controls,actions,keys,bindings:state.bindings,defaults:{},savedKeyboardCount:0,learning:learning?{...learning,diagnostics:collector.diagnostics()}:null,latestLearn});return;}
+    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.0',simulation,deviceMapping:true});return;}
+    if(req.method==='GET'&&url.pathname==='/api/device/status'){sendJSON(res,200,{app:APP,...deviceMapping.status(),localRemappingEnabled:state.enabled});return;}
+    if(req.method==='GET'&&url.pathname==='/api/state'){startNative();sendJSON(res,200,{app:APP,status:status(),controls,actions,keys,bindings:state.bindings,defaults:{},savedKeyboardCount:0,learning:learning?{...learning,diagnostics:collector.diagnostics()}:null,latestLearn});return;}
     if(req.method==='POST'){
       if(req.headers.origin!==ORIGIN||req.headers['x-micro-panel']!=='1'){sendJSON(res,403,{error:'请从本机面板操作。'});return;}
       const b=await bodyJSON(req);
+      if(url.pathname==='/api/device/read'){sendJSON(res,200,await exclusive(()=>deviceMapping.read()));return;}
+      if(url.pathname==='/api/device/prepare'){sendJSON(res,200,await exclusive(()=>deviceMapping.prepare(b)));return;}
+      if(url.pathname==='/api/device/commit'){sendJSON(res,200,await exclusive(()=>deviceMapping.commit(b)));return;}
       if(url.pathname==='/api/learn'){sendJSON(res,200,{learning:await exclusive(()=>startLearn(b.controlId))});return;}
       if(url.pathname==='/api/cancel-learn')await exclusive(()=>!learning||b.sessionId===learning.sessionId?endLearn('已取消识别。'):null);
       else if(url.pathname==='/api/save')await exclusive(()=>saveBinding(b));
@@ -164,13 +173,13 @@ const server=http.createServer(async(req,res)=>{
       else{sendJSON(res,404,{error:'没有这个操作。'});return;}
       sendJSON(res,200,{ok:true});return;
     }
-    const file={'/':'index.html','/app.js':'app.js','/style.css':'style.css'}[url.pathname];
+    const file={'/':'hardware.html','/codex':'index.html','/app.js':'app.js','/style.css':'style.css','/hardware.js':'hardware.js','/hardware.css':'hardware.css','/mapping-core.js':'mapping-core.js'}[url.pathname];
     if(req.method!=='GET'||!file){sendJSON(res,404,{error:'页面不存在。'});return;}
     res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'}[path.extname(file)],'Cache-Control':'no-store'});res.end(await readFile(path.join(ROOT,'public',file)));
   }catch(e){sendJSON(res,400,{error:e.message||'操作未完成。'});}
 });
 const heartbeat=setInterval(()=>{try{send({op:'heartbeat'});}catch{}},2000);
 async function shutdown(){if(shuttingDown)return;shuttingDown=true;clearInterval(heartbeat);clearTimeout(learningTimer);clearTimeout(settleTimer);release();try{send({op:'quit'});native.stdin.end();}catch{}server.close(()=>process.exit(0));setTimeout(()=>{native?.kill();process.exit(0);},1500).unref();}
-server.listen(PORT,'127.0.0.1',()=>{startNative();console.log(`Micro Windows: ${ORIGIN}${simulation?' [SIMULATION]':''}`);});
+server.listen(PORT,'127.0.0.1',()=>{if(state.enabled)startNative();console.log(`Micro Windows: ${ORIGIN}${simulation?' [SIMULATION]':''}`);});
 server.on('error',e=>{console.error(e.message);process.exit(1);});
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,shutdown);
