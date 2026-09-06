@@ -33,8 +33,11 @@ def main():
     for name in ['MicroHID.Windows.exe', 'MicroNetwork.Windows.exe', 'MicroInput.Windows.exe']:
         run(ROOT / name, '--self-test')
     run(ROOT / 'Micro Windows.exe', '--check-files')
-    for file in [*ROOT.glob('*.mjs'), *(ROOT / 'public').glob('*.js'), *(ROOT / 'scripts').glob('*.mjs')]:
+    for file in [*ROOT.glob('*.mjs'), *(ROOT / 'scripts').glob('*.mjs')]:
         run(node, '--check', file)
+    for file in (ROOT / 'public').glob('*.js'):
+        # Browser entry points are loaded as modules; the shared UMD file is also required by Node.
+        subprocess.run([str(node), '--input-type=module', '--check'], input=file.read_bytes(), cwd=ROOT, check=True)
     print('Built and checked all four Windows x64 executables.', flush=True)
 
 
