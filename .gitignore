@@ -1,0 +1,16 @@
+.local-archive/
+.build/
+dist/
+runtime/node.exe
+*.exe
+*.pdb
+*.zip
+node_modules/
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

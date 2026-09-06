@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Micro · Windows 键位配置</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / Windows</div><h1>让每一键，顺手。</h1></div></div>
+      <div class="connection"><span id="connection-state" class="status wait">正在连接本地服务</span><span class="local-note">本机配置 · 无需切换 Wi-Fi</span></div>
+    </header>
+
+    <div id="simulation-banner" class="setup-banner" hidden><strong>模拟测试 · 当前没有连接或控制真实键盘</strong></div>
+    <div id="setup-banner" class="setup-banner" hidden><div><strong>连接与设备状态</strong><p id="setup-message">请通过 Windows 蓝牙连接小键盘，并切到青灯 Codex 模式。</p></div><button id="confirm-device" class="button subtle" hidden>确认当前小键盘</button><button id="open-setup" class="button subtle">打开蓝牙设置 <span aria-hidden="true">↗</span></button></div>
+    <div id="mode-banner" class="mode-banner" hidden><div><strong id="mode-label"></strong><p id="mode-message"></p><p id="preserved-message"></p></div><button id="mode-toggle" class="button subtle">启用 Windows 自定义</button></div>
+
+    <div class="workspace">
+      <section class="device-section" aria-label="小键盘俯视图">
+        <div class="section-head"><div><span class="eyebrow">01 / 选择位置</span><h2>你的键盘</h2></div><span id="configured-count" class="count">0 个动作已配置</span></div>
+        <div class="drawing-surface">
+          <div class="drawing-tag">TOP VIEW <span>俯视图</span></div>
+          <div class="keyboard-case">
+            <span class="screw tl" aria-hidden="true"></span><span class="screw tr" aria-hidden="true"></span><span class="screw bl" aria-hidden="true"></span><span class="screw br" aria-hidden="true"></span>
+            <span class="orientation" aria-hidden="true">↑</span>
+            <div id="keyboard-grid" class="keyboard-grid">
+              <button id="dial-control" class="hardware special dial" aria-label="选择左上旋钮"><span class="dial-rim"><span class="dial-face"><i></i></span></span><span class="special-label">旋钮</span></button>
+              <button id="stick-control" class="hardware special stick" aria-label="选择右上摇杆"><span class="stick-base"><span class="stick-cap"><i></i><b></b></span></span><span class="special-label">摇杆</span></button>
+              <button id="touch-control" class="hardware special touch" aria-label="选择左下触摸点"><span class="touch-dot"></span><span class="special-label">触摸点</span></button>
+            </div>
+            <div class="case-caption">CODEX MICRO KB <span>·</span> PERSONAL CONTROL</div>
+          </div>
+          <div class="drawing-legend"><span><i class="legend-dot active"></i>已配置</span><span><i class="legend-dot selected"></i>当前选择</span><span id="learned-count">0 / 13 个按键已识别</span></div>
+        </div>
+        <div class="device-footnote"><span class="note-number">i</span><p>位置与实体键盘一致。先点一个位置，再识别它、选择功能。<br><span>旋钮与摇杆可按不同方向分别设置。</span></p></div>
+      </section>
+
+      <section class="editor" aria-label="按键功能设置">
+        <div class="editor-heading"><span class="eyebrow">02 / 设置功能</span><h2 id="selected-label">按键 1</h2><p id="selected-location">第一排 · 从左数第二个位置</p></div>
+        <div id="direction-choices" class="direction-choices" hidden></div>
+        <div id="optional-note" class="optional-note" hidden>仅在硬件支持按下并发送按键时可设置。</div>
+        <div class="source-section"><div class="field-label">这个位置发出的按键 <span id="source-check" class="tiny-status">未识别</span></div><div id="source-value" class="key-display muted">等待与实体按键对应</div><button id="learn-button" class="button learn">识别这个按键 <span aria-hidden="true">↗</span></button><div id="learn-progress" class="learn-progress" hidden><div class="pulse-ring"></div><div><strong id="learn-instruction">现在操作一次实体按键</strong><p id="learn-countdown">识别期间不会执行原动作。</p></div><button id="cancel-learn" class="text-button">取消</button></div></div>
+        <div id="learn-feedback" class="learn-feedback" role="status" hidden><strong id="feedback-title"></strong><p id="feedback-message"></p><p id="feedback-signal"></p><button id="share-button" class="button" hidden>共用现有功能</button></div>
+        <p id="shared-note" class="shared-note" hidden></p>
+        <div class="function-section"><label class="field-label" for="action-select">让它在 Windows 上执行</label><div class="select-wrap"><select id="action-select"></select><span aria-hidden="true">⌄</span></div>
+          <div id="quick-actions" class="quick-actions"></div>
+          <div id="custom-controls" class="custom-controls" hidden><span class="field-label">组合键 <span class="field-hint">可多选，也可以不选</span></span><div class="modifier-buttons"><button type="button" data-mod="left_control" aria-pressed="false">Ctrl <small>Control</small></button><button type="button" data-mod="left_shift" aria-pressed="false">Shift <small>Shift</small></button><button type="button" data-mod="left_alt" aria-pressed="false">Alt <small>Alt</small></button><button type="button" data-mod="left_win" aria-pressed="false">Win <small>Windows</small></button></div><label class="field-label" for="custom-key">再搭配一个按键</label><div class="select-wrap"><select id="custom-key"></select><span aria-hidden="true">⌄</span></div></div>
+          <div class="result-preview"><span id="result-label">保持原功能</span><div id="shortcut-preview" class="shortcut-preview">—</div></div>
+        </div>
+        <div class="editor-bottom"><button id="save-button" class="button primary" disabled>应用到这个按键 <span aria-hidden="true">↗</span></button><button id="restore-button" class="text-button restore" disabled>恢复这个位置的原功能</button><p class="save-note">设置保存在这台电脑 · 仅作用于这个小键盘</p></div>
+      </section>
+    </div>
+    <footer class="footer"><span>青灯 Codex 模式 · 设置保存在此电脑 · 无需切换 Wi-Fi</span><button id="quit-button" class="text-button">退出 Micro Windows</button><span>WINDOWS EDITION</span></footer>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
