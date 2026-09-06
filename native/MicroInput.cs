@@ -7,7 +7,7 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-// A short-lived hook records one explicit chord. No passive keyboard monitoring.
+// An explicit recording session previews chords until the user confirms or cancels.
 // No keys are injected and no HID device is opened; ordinary typing is never logged.
 internal static class MicroInput {
     [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
@@ -25,7 +25,7 @@ internal static class MicroInput {
     static readonly KeyboardHook HookCallback=OnHook;
     static readonly Queue<object> Notifications=new Queue<object>();
     static IntPtr hook=IntPtr.Zero,recordWindow=IntPtr.Zero;
-    static ChordCapture capture=null;
+    static CaptureSession capture=null;
     static InputWindow window;
     static void Emit(object value){Console.WriteLine(Json.Serialize(value));Console.Out.Flush();}
     static int Modifier(int vk,int scan,int flags){
@@ -50,17 +50,46 @@ internal static class MicroInput {
         return 0;
     }
     sealed class ChordCapture {
-        internal int Mods,Key=-1,ChordMods;internal bool Finished;
-        internal int PreviewMod{get{return Key<0?Mods:ChordMods;}}
-        internal int? PreviewKey{get{return Key<0?(int?)null:Key;}}
+        internal int Mods,Key=-1,ChordMods;
+        int mainToken=-1;bool observed;
+        internal bool Holding{get{return Mods!=0||blocked.Count>0;}}
+        internal bool Finished{get{return observed&&!Holding;}}
+        internal int? PreviewKey{get{return mainToken>=0&&blocked.Contains(mainToken)?(int?)Key:null;}}
         readonly HashSet<int> blocked=new HashSet<int>();
-        internal ChordCapture(int mods){Mods=mods;}
+        internal ChordCapture(int mods){Mods=mods;ChordMods=mods;observed=mods!=0;}
         internal bool Handle(int vk,int scan,int flags){
             bool up=(flags&1)!=0;int modifier=Modifier(vk,scan,flags),token=(scan<<9)|((flags&2)<<7)|vk;
-            bool suppress;
-            if(up){suppress=blocked.Remove(token);if(modifier!=0)Mods&=~modifier;}
-            else{blocked.Add(token);suppress=true;if(modifier!=0)Mods|=modifier;else if(Key<0){Key=KeyCode(vk,scan,flags);ChordMods=Mods;}}
-            Finished=Key>=0&&blocked.Count==0;return suppress;
+            if(up){bool suppress=blocked.Remove(token);if(modifier!=0)Mods&=~modifier;return suppress;}
+            if(!blocked.Add(token))return true; // Repeats cannot replace a more recently pressed main key.
+            observed=true;
+            if(modifier!=0){Mods|=modifier;if(Key<0||PreviewKey!=null)ChordMods=Mods;}
+            else{Key=KeyCode(vk,scan,flags);ChordMods=Mods;mainToken=token;}
+            return true;
+        }
+    }
+    sealed class Candidate {
+        internal int Mod,Key,Revision;internal string Error;
+    }
+    sealed class CaptureSession {
+        ChordCapture round;
+        internal Candidate Candidate;
+        internal int Revision;
+        internal int PreviewMod{get{return round.Mods;}}
+        internal int? PreviewKey{get{return round.PreviewKey;}}
+        internal bool Holding{get{return round.Holding;}}
+        internal CaptureSession(int mods){round=new ChordCapture(mods);}
+        internal bool Handle(int vk,int scan,int flags){
+            bool suppress=round.Handle(vk,scan,flags);
+            if(round.Finished){
+                Candidate=new Candidate{Mod=round.ChordMods,Key=round.Key<0?0:round.Key,Revision=++Revision,Error=round.Key==0?"此按键无法作为普通主键录入，请重新试按或手动选择。":null};
+                round=new ChordCapture(0);
+            }
+            return suppress;
+        }
+        internal string ConfirmError(int revision){
+            if(Holding)return "请先松开所有按键，再点击使用此组合。";
+            if(Candidate==null||revision!=Revision)return "组合键已变化，请核对当前预览后再次确认。";
+            return Candidate.Error;
         }
     }
     static void EndRecord(){if(hook!=IntPtr.Zero){UnhookWindowsHookEx(hook);hook=IntPtr.Zero;}recordId=null;capture=null;}
@@ -71,21 +100,28 @@ internal static class MicroInput {
             if(GetForegroundWindow()!=recordWindow||DateTime.UtcNow>recordDeadline){string id=recordId;EndRecord();NotifyLater(new{kind="recorded",id,error="录入已结束，请保持页面在前台并重新开始。"});return CallNextHookEx(IntPtr.Zero,code,w,l);}
             int vk=Marshal.ReadInt32(l),scan=Marshal.ReadInt32(l,4),llFlags=Marshal.ReadInt32(l,8);
             if(vk<=0||vk>=255)return CallNextHookEx(hook,code,w,l);
-            int previousMod=capture.PreviewMod;int? previousKey=capture.PreviewKey;
+            int previousMod=capture.PreviewMod,previousRevision=capture.Revision;int? previousKey=capture.PreviewKey;bool previousHolding=capture.Holding;
             bool suppress=capture.Handle(vk,scan,((llFlags&1)!=0?2:0)|((llFlags&0x80)!=0?1:0));
-            if(capture.Finished){string id=recordId;int key=capture.Key,mod=capture.ChordMods;EndRecord();NotifyLater(new{kind="recorded",id,mod,key,error=key==0?"此按键无法作为普通键盘主键录入，请手动选择。":null});}
-            else if(previousMod!=capture.PreviewMod||previousKey!=capture.PreviewKey)NotifyLater(new{kind="progress",id=recordId,mod=capture.PreviewMod,key=capture.PreviewKey});
+            if(previousRevision!=capture.Revision){var value=capture.Candidate;NotifyLater(new{kind="candidate",id=recordId,mod=value.Mod,key=value.Key,revision=value.Revision,error=value.Error});}
+            else if(previousMod!=capture.PreviewMod||previousKey!=capture.PreviewKey||previousHolding!=capture.Holding)NotifyLater(new{kind="progress",id=recordId,mod=capture.PreviewMod,key=capture.PreviewKey,holding=capture.Holding});
             return suppress?new IntPtr(1):CallNextHookEx(hook,code,w,l);
         }catch{string id=recordId;EndRecord();NotifyLater(new{kind="recorded",id,error="录入检测已停止，请重新开始。"});return CallNextHookEx(IntPtr.Zero,code,w,l);}
     }
     static void StartRecord(string id){
         EndRecord();int mods=0;
         foreach(int vk in new[]{0xA2,0xA0,0xA4,0x5B,0xA3,0xA1,0xA5,0x5C})if((GetAsyncKeyState(vk)&0x8000)!=0)mods|=Modifier(vk,0,0);
-        capture=new ChordCapture(mods);recordWindow=GetForegroundWindow();recordId=id;recordDeadline=DateTime.UtcNow.AddSeconds(20);
+        capture=new CaptureSession(mods);recordWindow=GetForegroundWindow();recordId=id;recordDeadline=DateTime.UtcNow.AddSeconds(60);
         hook=SetWindowsHookEx(13,HookCallback,GetModuleHandle(null),0);
         if(hook==IntPtr.Zero){int error=Marshal.GetLastWin32Error();EndRecord();throw new System.ComponentModel.Win32Exception(error);}
-        Emit(new{kind="recording",id,guarded=true});
-        Emit(new{kind="progress",id,mod=capture.PreviewMod,key=capture.PreviewKey});
+        Emit(new{kind="recording",id,guarded=true,confirmRequired=true});
+        Emit(new{kind="progress",id,mod=capture.PreviewMod,key=capture.PreviewKey,holding=capture.Holding});
+    }
+    static void ConfirmRecord(string id,int revision){
+        if(id!=recordId||capture==null){Emit(new{kind="confirm-rejected",id,revision,error="录入已结束，请重新开始。"});return;}
+        if(GetForegroundWindow()!=recordWindow||DateTime.UtcNow>recordDeadline){EndRecord();Emit(new{kind="recorded",id,error="录入已超时或页面失去焦点，请重新开始。"});return;}
+        string error=capture.ConfirmError(revision);
+        if(error!=null){Emit(new{kind="confirm-rejected",id,revision,error});return;}
+        var value=capture.Candidate;EndRecord();Emit(new{kind="recorded",id,mod=value.Mod,key=value.Key,revision=value.Revision});
     }
     static void ProcessCommands(){string line;while(Commands.TryDequeue(out line)){
         if(line=="quit"){EndRecord();Application.ExitThread();return;}
@@ -95,27 +131,49 @@ internal static class MicroInput {
             else if(op=="record"){
                 Guid id;if(!c.ContainsKey("id")||!Guid.TryParse(Convert.ToString(c["id"]),out id))throw new Exception("无效录入会话。");
                 try{StartRecord(id.ToString());}catch(Exception e){Emit(new{kind="recorded",id=id.ToString(),error="Windows 快捷键拦截未启动："+e.Message});}
-            }else if(op=="cancel"&&c.ContainsKey("id")&&Convert.ToString(c["id"])==recordId)EndRecord();
+            }else if(op=="confirm")ConfirmRecord(Convert.ToString(c["id"]),Convert.ToInt32(c["revision"]));
+            else if(op=="cancel"&&c.ContainsKey("id")&&Convert.ToString(c["id"])==recordId)EndRecord();
         }catch(Exception e){Emit(new{kind="error",error=e.Message});}
     }}
     sealed class InputWindow:NativeWindow {
         public InputWindow(){CreateHandle(new CreateParams{Caption="Micro Windows Input",Parent=new IntPtr(-3)});}
         protected override void WndProc(ref Message m){try{if(m.Msg==0x8001)ProcessCommands();else if(m.Msg==0x8002)while(Notifications.Count>0)Emit(Notifications.Dequeue());}catch(Exception e){Emit(new{kind="error",error=e.Message});}base.WndProc(ref m);}
     }
+    static void Check(bool value,string message){if(!value)throw new Exception(message);}
+    static void Feed(CaptureSession value,params int[][] events){foreach(var e in events)Check(value.Handle(e[0],e[1],e[2]),"Owned key event escaped suppression");}
+    static void ExpectCandidate(CaptureSession value,int mod,int key){Check(!value.Holding&&value.Candidate!=null&&value.Candidate.Mod==mod&&value.Candidate.Key==key&&value.Candidate.Error==null&&value.ConfirmError(value.Revision)==null,"Wrong released candidate");}
     static int SelfTest(){
-        if(Modifier(0x11,29,2)!=16||Modifier(0x10,54,0)!=32||Modifier(0x5B,0,0)!=8)throw new Exception("Modifier mapping failed");
-        if(KeyCode(67,46,0)!=6||KeyCode(13,28,0)!=40||KeyCode(13,28,2)!=88||KeyCode(37,75,2)!=80||KeyCode(103,71,0)!=95||KeyCode(0x87,0,0)!=115)throw new Exception("Key mapping failed");
-        var altA=new ChordCapture(0);
-        if(!altA.Handle(0xA4,56,0)||!altA.Handle(65,30,0)||!altA.Handle(65,30,0)||!altA.Handle(65,30,1)||altA.Finished||!altA.Handle(0xA4,56,1)||!altA.Finished||altA.Key!=4||altA.ChordMods!=4)throw new Exception("Alt+A suppression or balanced release failed");
-        var preHeld=new ChordCapture(1);preHeld.Handle(67,46,0);if(preHeld.Handle(0xA2,29,1)||preHeld.Finished||!preHeld.Handle(67,46,1)||!preHeld.Finished||preHeld.ChordMods!=1)throw new Exception("Pre-held modifier release failed");
-        var live=new ChordCapture(0);
-        live.Handle(0xA2,29,0);if(live.PreviewMod!=1||live.PreviewKey!=null||live.Finished)throw new Exception("Live Ctrl preview failed");
-        live.Handle(0xA0,42,0);if(live.PreviewMod!=3||live.PreviewKey!=null)throw new Exception("Live Ctrl+Shift preview failed");
-        live.Handle(0xA0,42,1);live.Handle(0xA2,29,1);if(live.PreviewMod!=0||live.PreviewKey!=null||live.Finished)throw new Exception("Released modifiers must clear preview without finishing");
-        live.Handle(0xA4,56,0);live.Handle(65,30,0);if(live.PreviewMod!=4||live.PreviewKey!=4||live.Finished)throw new Exception("Main key must appear before release");
-        live.Handle(0xA4,56,1);if(live.PreviewMod!=4||live.PreviewKey!=4||live.Finished)throw new Exception("Chord preview must stay stable during release");
-        live.Handle(65,30,1);if(!live.Finished||live.ChordMods!=4||live.Key!=4)throw new Exception("Live preview changed final chord");
-        Console.WriteLine("Input self-test passed: live preview, chords, Alt+A suppression and balanced release; no real keys injected or captured.");return 0;
+        Check(Modifier(0x11,29,2)==16&&Modifier(0x10,54,0)==32&&Modifier(0x5B,0,0)==8,"Modifier mapping failed");
+        Check(KeyCode(67,46,0)==6&&KeyCode(13,28,0)==40&&KeyCode(13,28,2)==88&&KeyCode(37,75,2)==80&&KeyCode(103,71,0)==95&&KeyCode(0x87,0,0)==115,"Key mapping failed");
+        var single=new CaptureSession(0);Check(!single.Handle(65,30,1)&&single.Candidate==null,"Stray keyup created a candidate");
+        Feed(single,new[]{0xA4,56,0});Check(single.PreviewMod==4&&single.PreviewKey==null&&single.Holding,"Alt live preview failed");
+        Feed(single,new[]{0xA4,56,1});ExpectCandidate(single,4,0);
+        foreach(bool reverse in new[]{false,true}){
+            var pair=new CaptureSession(0);Feed(pair,new[]{0xA2,29,0},new[]{0xA4,56,0});
+            if(reverse)Feed(pair,new[]{0xA2,29,1},new[]{0xA4,56,1});else Feed(pair,new[]{0xA4,56,1},new[]{0xA2,29,1});
+            ExpectCandidate(pair,5,0);
+        }
+        var releases=new[]{new[]{0xA2,29,1},new[]{0xA4,56,1},new[]{65,30,1}};
+        foreach(var order in new[]{new[]{0,1,2},new[]{0,2,1},new[]{1,0,2},new[]{1,2,0},new[]{2,0,1},new[]{2,1,0}}){
+            var full=new CaptureSession(0);Feed(full,new[]{0xA2,29,0},new[]{0xA4,56,0},new[]{65,30,0});
+            foreach(int i in order)Feed(full,releases[i]);ExpectCandidate(full,5,4);
+        }
+        var replace=new CaptureSession(0);Feed(replace,new[]{0xA4,56,0},new[]{65,30,0},new[]{65,30,1});
+        Check(replace.PreviewMod==4&&replace.PreviewKey==null&&replace.Candidate==null,"Released main key must leave a live Alt preview");
+        Feed(replace,new[]{66,48,0});Check(replace.PreviewKey==5,"B did not replace A immediately");
+        Feed(replace,new[]{66,48,1},new[]{0xA4,56,1});ExpectCandidate(replace,4,5);
+        var repeat=new CaptureSession(0);Feed(repeat,new[]{0xA4,56,0},new[]{65,30,0},new[]{66,48,0},new[]{65,30,0},new[]{65,30,1},new[]{66,48,1},new[]{0xA4,56,1});ExpectCandidate(repeat,4,5);
+        var preHeld=new CaptureSession(1);Feed(preHeld,new[]{67,46,0},new[]{67,46,1});Check(preHeld.Holding&&preHeld.Candidate==null,"Pre-held Ctrl ended before release");
+        Check(!preHeld.Handle(0xA2,29,1),"Pre-held release was swallowed");ExpectCandidate(preHeld,1,6);
+        var repeated=new CaptureSession(0);Feed(repeated,new[]{0xA2,29,0},new[]{65,30,0},new[]{65,30,1},new[]{0xA2,29,1});ExpectCandidate(repeated,1,4);
+        Feed(repeated,new[]{0xA4,56,0});Check(repeated.ConfirmError(1)!=null,"Confirmation accepted while a new round was held");
+        Feed(repeated,new[]{0xA4,56,1});ExpectCandidate(repeated,4,0);Check(repeated.Revision==2&&repeated.ConfirmError(1)!=null,"Stale preview could be confirmed");
+        Feed(repeated,new[]{0xA2,29,0},new[]{0xA0,42,0},new[]{75,37,0},new[]{0xA2,29,1},new[]{75,37,1},new[]{0xA0,42,1});ExpectCandidate(repeated,3,14);Check(repeated.Revision==3,"Repeated rounds did not stay in the session");
+        var right=new CaptureSession(0);Feed(right,new[]{0xA3,29,2},new[]{0xA5,56,2},new[]{0xA3,29,3},new[]{0xA5,56,3});ExpectCandidate(right,80,0);
+        var changeMod=new CaptureSession(0);Feed(changeMod,new[]{0xA2,29,0},new[]{65,30,0},new[]{0xA2,29,1},new[]{0xA4,56,0},new[]{0xA4,56,1},new[]{65,30,1});ExpectCandidate(changeMod,4,4);
+        var invalid=new CaptureSession(0);Feed(invalid,new[]{0xAF,0,0},new[]{0xAF,0,1});Check(invalid.Candidate.Error!=null&&invalid.ConfirmError(1)!=null,"Unknown key was recorded as a modifier-only chord");
+        Feed(invalid,new[]{66,48,0},new[]{66,48,1});ExpectCandidate(invalid,0,5);
+        Console.WriteLine("Input self-test passed: modifier-only chords, release order, main-key replacement, repeated rounds, confirmation and balanced suppression; no real keys injected or captured.");return 0;
     }
     [STAThread] static int Main(string[] args){
         Console.OutputEncoding=new UTF8Encoding(false);Console.InputEncoding=new UTF8Encoding(false);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,access} from 'node:fs/promises';
+import {mkdtemp,access,writeFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {spawn} from 'node:child_process';
 import net from 'node:net';
@@ -14,14 +15,20 @@ test('ordinary keyboard API works independently of browser presence and never ca
   const mock=await mockDevice();t.after(()=>mock.close());
   const data=await mkdtemp(path.join(process.env.MICRO_TEST_ROOT||tmpdir(),'micro-device-api-')),commands=path.join(data,'native-commands.jsonl');
   const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));const origin='http://127.0.0.1:'+port;
-  let output='';const child=spawn(process.execPath,[path.join(root,'server.mjs')],{cwd:root,windowsHide:true,env:{...process.env,MICRO_WINDOWS_DATA:data,MICRO_WINDOWS_PORT:String(port),MICRO_WINDOWS_TEST:'1',MICRO_WINDOWS_DEVICE_ORIGIN:mock.origin,MICRO_WINDOWS_HELPER:'',MICRO_WINDOWS_COMMANDS:commands},stdio:['ignore','pipe','pipe']});
+  const inputEvents=path.join(data,'input-fixture.json');
+  let output='';const child=spawn(process.execPath,[path.join(root,'server.mjs')],{cwd:root,windowsHide:true,env:{...process.env,MICRO_WINDOWS_DATA:data,MICRO_WINDOWS_PORT:String(port),MICRO_WINDOWS_TEST:'1',MICRO_WINDOWS_DEVICE_ORIGIN:mock.origin,MICRO_WINDOWS_HELPER:'',MICRO_WINDOWS_COMMANDS:commands,MICRO_WINDOWS_INPUT_HELPER:path.join(root,'tests/mock-input.mjs'),MICRO_WINDOWS_INPUT_EVENTS:inputEvents},stdio:['ignore','pipe','pipe']});
   child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
   const post=async(route,body={},expected=200)=>{const r=await fetch(origin+route,{method:'POST',headers:{Origin:origin,'X-Micro-Panel':'1','Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();assert.equal(r.status,expected,JSON.stringify(result)+' '+output);return result;};
   t.after(async()=>{if(child.exitCode===null){try{await post('/api/quit');}catch{child.kill();}}await until(()=>child.exitCode!==null).catch(()=>child.kill());});
   await until(async()=>(await fetch(origin+'/api/health')).ok);
   const html=await(await fetch(origin)).text();assert.match(html,/普通键盘配置/);assert.match(html,/hardware.js/);
   const status=await(await fetch(origin+'/api/device/status')).json();assert.equal(status.simulation,true);assert.equal(status.localRemappingEnabled,false);
-  for(const route of ['/api/device/read','/api/device/prepare','/api/device/commit','/api/device/diagnose','/api/device/repair','/api/input/state','/api/input/record','/api/input/cancel']){const r=await fetch(origin+route,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);}
+  for(const route of ['/api/device/read','/api/device/prepare','/api/device/commit','/api/device/diagnose','/api/device/repair','/api/input/state','/api/input/record','/api/input/confirm','/api/input/cancel']){const r=await fetch(origin+route,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);}
+  const client=randomUUID(),id=randomUUID();assert.equal((await post('/api/input/record',{client,id})).confirmRequired,true);
+  await writeFile(inputEvents,JSON.stringify({id:randomUUID(),candidate:{mod:4,key:0}}));
+  const candidate=await until(async()=>{const input=await post('/api/input/state',{client});assert.equal(input.recording.result,null);return input.recording.candidate;});
+  assert.deepEqual(await post('/api/input/confirm',{client,id,revision:candidate.revision}),{id,mod:4,key:0,revision:1});
+  await post('/api/input/cancel',{client,id});assert.equal((await post('/api/input/state',{client})).recording,null);
   const diagnostic=await post('/api/device/diagnose');assert.equal(diagnostic.ok,true);assert.equal(diagnostic.network.state,'simulation');assert.equal(mock.state.posts.length,0);
   await post('/api/device/repair',{},400);assert.equal(mock.state.posts.length,0);
   assert.equal((await fetch(origin+'/api/device/commit')).status,404);

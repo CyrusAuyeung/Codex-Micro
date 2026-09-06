@@ -155,7 +155,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.headers.host!==`127.0.0.1:${PORT}`){sendJSON(res,403,{error:'仅允许本机访问。'});return;}
   try{
     const url=new URL(req.url,ORIGIN);
-    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.4',simulation,deviceMapping:true});return;}
+    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.5',simulation,deviceMapping:true});return;}
     if(req.method==='GET'&&url.pathname==='/api/device/status'){sendJSON(res,200,{app:APP,...deviceMapping.status(),localRemappingEnabled:state.enabled});return;}
     if(req.method==='GET'&&url.pathname==='/api/state'){startNative();sendJSON(res,200,{app:APP,status:status(),controls,actions,keys,bindings:state.bindings,defaults:{},savedKeyboardCount:0,learning:learning?{...learning,diagnostics:collector.diagnostics()}:null,latestLearn});return;}
     if(req.method==='POST'){
@@ -163,6 +163,7 @@ const server=http.createServer(async(req,res)=>{
       const b=await bodyJSON(req);
       if(url.pathname==='/api/input/state'){sendJSON(res,200,await keyboardInput.state(b.client));return;}
       if(url.pathname==='/api/input/record'){sendJSON(res,200,await keyboardInput.begin(b.client,b.id));return;}
+      if(url.pathname==='/api/input/confirm'){sendJSON(res,200,await keyboardInput.confirm(b.client,b.id,b.revision));return;}
       if(url.pathname==='/api/input/cancel'){keyboardInput.cancel(b.client,b.id);sendJSON(res,200,{ok:true});return;}
       if(url.pathname==='/api/device/diagnose'){sendJSON(res,200,await exclusive(async()=>{try{await deviceMapping.current();return {ok:true,network:deviceMapping.network.last};}catch(e){return {ok:false,error:e.message,network:e.network||deviceMapping.network.last};}}));return;}
       if(url.pathname==='/api/device/repair'){sendJSON(res,200,await deviceMapping.network.repair());return;}

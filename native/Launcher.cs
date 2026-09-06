@@ -22,14 +22,14 @@ internal static class Launcher {
             }
         }catch{return null;}
     }
-    internal static bool Running(){return ServiceVersion()=="1.1.4";}
+    internal static bool Running(){return ServiceVersion()=="1.1.5";}
     private static bool FilesReady(){
         foreach(var name in new[]{"runtime/node.exe","MicroHID.Windows.exe","MicroNetwork.Windows.exe","MicroInput.Windows.exe","server.mjs","model.mjs","vendor.mjs","network.mjs","input.mjs","device-mapping.mjs","public/hardware.html","public/hardware.js","public/hardware.css","public/mapping-core.js","public/index.html","public/app.js","public/style.css"})
             if(!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,name)))return false;
         return true;
     }
     private static void WaitForPreviousLauncher(string version){
-        string previousName=version=="1.0.0"?"Local\\MicroWindowsLauncher":version=="1.1.0"?"Local\\MicroWindowsLauncher11":version=="1.1.1"?"Local\\MicroWindowsLauncher111":version=="1.1.2"?"Local\\MicroWindowsLauncher112":"Local\\MicroWindowsLauncher113";
+        string previousName=version=="1.0.0"?"Local\\MicroWindowsLauncher":version=="1.1.0"?"Local\\MicroWindowsLauncher11":version=="1.1.1"?"Local\\MicroWindowsLauncher111":version=="1.1.2"?"Local\\MicroWindowsLauncher112":version=="1.1.3"?"Local\\MicroWindowsLauncher113":"Local\\MicroWindowsLauncher114";
         try{using(var previous=Mutex.OpenExisting(previousName)){
             bool acquired=false;
             try{acquired=previous.WaitOne(6000);}catch(AbandonedMutexException){acquired=true;}
@@ -54,8 +54,8 @@ internal static class Launcher {
             if(Running()){Open();return 0;}
             // Retire only identified earlier versions of this same application.
             var previousVersion=ServiceVersion();
-            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"||previousVersion=="1.1.1"||previousVersion=="1.1.2"||previousVersion=="1.1.3"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
-            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher114",out first)) {
+            if(previousVersion=="1.0.0"||previousVersion=="1.1.0"||previousVersion=="1.1.1"||previousVersion=="1.1.2"||previousVersion=="1.1.3"||previousVersion=="1.1.4"){Stop();WaitForPreviousLauncher(previousVersion);for(int i=0;i<25&&ServiceVersion()!=null;i++)Thread.Sleep(200);}
+            bool first;using(var single=new Mutex(true,"Local\\MicroWindowsLauncher115",out first)) {
                 if(!first){for(int i=0;i<30&&!Running();i++)Thread.Sleep(200);if(Running()){Open();return 0;}throw new Exception("另一个 Micro Windows 正在启动，请稍后重试。");}
                 string root=AppDomain.CurrentDomain.BaseDirectory,node=Path.Combine(root,"runtime/node.exe"),script=Path.Combine(root,"server.mjs");
                 if(!FilesReady())throw new Exception("文件不完整。请先解压整个 Micro Windows 文件夹，再双击启动程序。");
