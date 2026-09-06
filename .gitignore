@@ -2,6 +2,7 @@
 .build/
 dist/
 runtime/node.exe
+runtime/*.download
 *.exe
 *.pdb
 *.zip

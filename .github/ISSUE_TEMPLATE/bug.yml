@@ -1,0 +1,46 @@
+name: 问题反馈
+description: 启动、连接、键位保存或快捷键录入异常
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Micro Windows 版本
+      placeholder: 1.1.6
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Windows 版本
+      placeholder: Windows 11 24H2 x64
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 出问题时使用的功能
+      options:
+        - 普通键盘：保存到设备
+        - Codex 模式：本机改键
+        - 启动或系统托盘
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 录入问题请写明按下和松开各个键的顺序。
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期结果与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 诊断信息或截图
+      description: 连接问题可贴页面中的检查结果。
