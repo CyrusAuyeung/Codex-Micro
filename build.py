@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import json
+import shutil
 
 ROOT = Path(__file__).resolve().parent
 
@@ -18,21 +20,30 @@ def main():
     if not csc.is_file():
         raise SystemExit(f'Missing .NET Framework C# compiler: {csc}')
     run(sys.executable, ROOT / 'scripts/prepare-runtime.py')
+    run(sys.executable, ROOT / 'scripts/prepare-desktop.py')
     node = ROOT / 'runtime/node.exe'
     run(node, ROOT / 'scripts/check-version.mjs')
+    version = json.loads((ROOT / 'package.json').read_text(encoding='utf-8'))['version']
+    assembly = ROOT / '.build/AssemblyInfo.cs'
+    assembly.write_text('[assembly:System.Reflection.AssemblyVersion("' + version + '.0")]\n'
+                        '[assembly:System.Reflection.AssemblyProduct("Micro Windows")]\n', encoding='utf-8')
     base = [csc, '/nologo', '/optimize+', '/platform:x64', '/r:System.Web.Extensions.dll',
             '/win32manifest:' + str(ROOT / 'native/app.manifest')]
     targets = [
         ('MicroHID.Windows.exe', ['/target:exe'], ['HidDevice.cs', 'KeyboardOutput.cs', 'MicroHID.cs']),
-        ('Micro Windows.exe', ['/target:winexe', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll'], ['Launcher.cs']),
+        ('Micro Windows.exe', ['/target:winexe', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
+                               '/r:' + str(ROOT / 'Microsoft.Web.WebView2.Core.dll'),
+                               '/r:' + str(ROOT / 'Microsoft.Web.WebView2.WinForms.dll')], ['Launcher.cs']),
         ('MicroNetwork.Windows.exe', ['/target:exe', '/r:System.Windows.Forms.dll'], ['NetworkInfo.cs', 'NetworkRepair.cs']),
         ('MicroInput.Windows.exe', ['/target:exe', '/r:System.Windows.Forms.dll'], ['MicroInput.cs']),
     ]
     for name, flags, sources in targets:
-        run(*base, *flags, '/out:' + str(ROOT / name), *(ROOT / 'native' / file for file in sources))
+        run(*base, *flags, '/out:' + str(ROOT / name), assembly, *(ROOT / 'native' / file for file in sources))
+    shutil.copyfile(ROOT / 'native/app.config', ROOT / 'Micro Windows.exe.config')
     for name in ['MicroHID.Windows.exe', 'MicroNetwork.Windows.exe', 'MicroInput.Windows.exe']:
         run(ROOT / name, '--self-test')
     run(ROOT / 'Micro Windows.exe', '--check-files')
+    run(ROOT / 'Micro Windows.exe', '--self-test')
     for file in [*ROOT.glob('*.mjs'), *(ROOT / 'scripts').glob('*.mjs')]:
         run(node, '--check', file)
     for file in (ROOT / 'public').glob('*.js'):

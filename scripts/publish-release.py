@@ -33,7 +33,7 @@ def main():
     if existing.returncode == 0 and existing.stdout.strip() != commit:
         raise SystemExit(f'{tag} already points to another commit')
     folder = ROOT / '.build/release'
-    asset = folder / f'Micro-Windows-{version}-win-x64.zip'
+    asset = folder / f'Micro-Windows-{version}-Setup-x64.exe'
     checksum = folder / 'SHA256SUMS.txt'
     sha = hashlib.sha256(asset.read_bytes()).hexdigest()
     if checksum.read_text(encoding='utf-8') != f'{sha}  {asset.name}\n':
@@ -43,7 +43,7 @@ def main():
     if not section or not section.group(1).strip():
         raise SystemExit('Missing release notes')
     notes = folder / 'release-notes.md'
-    notes.write_text(section.group(1).strip() + f'\n\n下载 **{asset.name}**，完整解压后双击 **Micro Windows.exe**。\n', encoding='utf-8', newline='\n')
+    notes.write_text(section.group(1).strip() + f'\n\n下载并运行 **{asset.name}**。覆盖安装保留已有设置；首次安装若缺少 WebView2，会联网补装。\n', encoding='utf-8', newline='\n')
     if args.dry_run:
         print(f'Ready: {repository} {tag} at {commit}\n{asset.name}: {sha}')
         return

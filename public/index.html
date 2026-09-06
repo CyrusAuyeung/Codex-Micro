@@ -4,27 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Micro · Windows 键位配置</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/desktop.css">
   <script src="/app.js" type="module"></script>
+  <script src="/desktop.js" type="module"></script>
 </head>
 <body>
   <main class="shell">
     <header class="masthead">
-      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><div><div class="eyebrow">CODEX MICRO / Windows</div><h1>让每一键，顺手。</h1></div></div>
-      <div class="connection"><span id="connection-state" class="status wait">正在连接本地服务</span><span class="local-note">Codex 本机改键 · 后台运行时生效</span></div>
+      <div class="brand"><span class="brand-symbol" aria-hidden="true">m<span>•</span></span><h1>Micro Windows</h1></div>
+      <div class="header-tools"><span id="connection-state" class="status wait">正在连接本地服务</span><button class="text-button" data-dialog="help-dialog">帮助</button><button id="about-button" class="text-button">关于<span id="update-dot" hidden> · 新版</span></button></div>
     </header>
 
-    <p><a class="text-button" href="/">← 普通键盘 · 保存到设备</a></p>
-    <div class="mode-banner"><div><strong>这里是 Codex 模式的本机改键</strong><p>关闭网页后，托盘后台仍会执行映射；退出后台后停止。要让普通键盘模式在退出程序后继续生效，请使用“保存到设备”页面。</p></div></div>
+    <nav class="mode-tabs" aria-label="配置方式"><a href="/">普通键盘 <span>保存到设备</span></a><a href="/codex" aria-current="page">Codex 模式 <span>本机改键</span></a></nav>
     <div id="simulation-banner" class="setup-banner" hidden><strong>模拟测试 · 当前没有连接或控制真实键盘</strong></div>
-    <div id="setup-banner" class="setup-banner" hidden><div><strong>连接与设备状态</strong><p id="setup-message">请通过 Windows 蓝牙连接小键盘，并切到青灯 Codex 模式。</p></div><button id="confirm-device" class="button subtle" hidden>确认当前小键盘</button><button id="open-setup" class="button subtle">打开蓝牙设置 <span aria-hidden="true">↗</span></button></div>
-    <div id="mode-banner" class="mode-banner" hidden><div><strong id="mode-label"></strong><p id="mode-message"></p><p id="preserved-message"></p></div><button id="mode-toggle" class="button subtle">启用 Windows 自定义</button></div>
+    <div id="mode-banner" class="mode-banner" hidden><div><strong id="mode-label"></strong><span id="mode-message" hidden></span><span id="preserved-message" hidden></span></div><div class="toolbar-actions"><button class="text-button" data-dialog="device-dialog">连接状态</button><button id="mode-toggle" class="button subtle">启用 Windows 自定义</button></div></div>
 
     <div class="workspace">
       <section class="device-section" aria-label="小键盘俯视图">
-        <div class="section-head"><div><span class="eyebrow">01 / 选择位置</span><h2>你的键盘</h2></div><span id="configured-count" class="count">0 个动作已配置</span></div>
+        <div class="section-head"><h2>选择键位</h2><span id="configured-count" class="count">0 个动作已配置</span></div>
         <div class="drawing-surface">
-          <div class="drawing-tag">TOP VIEW <span>俯视图</span></div>
           <div class="keyboard-case">
             <span class="screw tl" aria-hidden="true"></span><span class="screw tr" aria-hidden="true"></span><span class="screw bl" aria-hidden="true"></span><span class="screw br" aria-hidden="true"></span>
             <span class="orientation" aria-hidden="true">↑</span>
@@ -37,11 +35,10 @@
           </div>
           <div class="drawing-legend"><span><i class="legend-dot active"></i>已配置</span><span><i class="legend-dot selected"></i>当前选择</span><span id="learned-count">0 / 13 个按键已识别</span></div>
         </div>
-        <div class="device-footnote"><span class="note-number">i</span><p>位置与实体键盘一致。先点一个位置，再识别它、选择功能。<br><span>旋钮与摇杆可按不同方向分别设置。</span></p></div>
       </section>
 
       <section class="editor" aria-label="按键功能设置">
-        <div class="editor-heading"><span class="eyebrow">02 / 设置功能</span><h2 id="selected-label">按键 1</h2><p id="selected-location">第一排 · 从左数第二个位置</p></div>
+        <div class="editor-heading"><h2 id="selected-label">按键 1</h2><p id="selected-location">第一排 · 从左数第二个位置</p></div>
         <div id="direction-choices" class="direction-choices" hidden></div>
         <div id="optional-note" class="optional-note" hidden>仅在硬件支持按下并发送按键时可设置。</div>
         <div class="source-section"><div class="field-label">这个位置发出的按键 <span id="source-check" class="tiny-status">未识别</span></div><div id="source-value" class="key-display muted">等待与实体按键对应</div><button id="learn-button" class="button learn">识别这个按键 <span aria-hidden="true">↗</span></button><div id="learn-progress" class="learn-progress" hidden><div class="pulse-ring"></div><div><strong id="learn-instruction">现在操作一次实体按键</strong><p id="learn-countdown">识别期间不会执行原动作。</p></div><button id="cancel-learn" class="text-button">取消</button></div></div>
@@ -52,11 +49,12 @@
           <div id="custom-controls" class="custom-controls" hidden><span class="field-label">组合键 <span class="field-hint">可多选，也可以不选</span></span><div class="modifier-buttons"><button type="button" data-mod="left_control" aria-pressed="false">Ctrl <small>Control</small></button><button type="button" data-mod="left_shift" aria-pressed="false">Shift <small>Shift</small></button><button type="button" data-mod="left_alt" aria-pressed="false">Alt <small>Alt</small></button><button type="button" data-mod="left_win" aria-pressed="false">Win <small>Windows</small></button></div><label class="field-label" for="custom-key">再搭配一个按键</label><div class="select-wrap"><select id="custom-key"></select><span aria-hidden="true">⌄</span></div></div>
           <div class="result-preview"><span id="result-label">保持原功能</span><div id="shortcut-preview" class="shortcut-preview">—</div></div>
         </div>
-        <div class="editor-bottom"><button id="save-button" class="button primary" disabled>应用到这个按键 <span aria-hidden="true">↗</span></button><button id="restore-button" class="text-button restore" disabled>恢复这个位置的原功能</button><p class="save-note">设置保存在这台电脑 · 仅作用于这个小键盘</p></div>
       </section>
     </div>
-    <footer class="footer"><span>本机映射：网页可关闭，托盘后台需运行</span><button id="quit-button" class="text-button">退出 Micro Windows</button><span>WINDOWS EDITION</span></footer>
+    <div class="hardware-actions"><span class="field-help">关闭窗口后，托盘继续执行改键。</span><div class="toolbar-actions"><button id="restore-button" class="text-button restore" disabled>清除这个位置的功能</button><button id="save-button" class="button primary" disabled>应用到这个按键</button></div></div>
   </main>
+  <dialog id="help-dialog" aria-labelledby="help-title"><h2 id="help-title">Codex 模式 · 使用方式</h2><ol><li>双击左下触摸点切到青灯 Codex 模式，在 Windows 蓝牙中连接 <strong>Codex Micro</strong>。</li><li>点选图中的位置，点击“识别这个按键”，操作一次对应实体按键。</li><li>选择功能，点击“应用”。旋钮和摇杆可分别选择不同方向。</li></ol><p>设置保存在电脑。关闭窗口后继续在托盘运行，彻底退出后停止本机改键。</p><p>想将快捷键保存在键盘中，请使用“普通键盘”页面。</p><div class="dialog-actions"><button class="button primary" data-close>知道了</button></div></dialog>
+  <dialog id="device-dialog" aria-labelledby="device-title"><h2 id="device-title">连接状态</h2><div id="setup-banner" class="setup-banner" hidden><div><p id="setup-message">请连接蓝牙，并切到青灯 Codex 模式。</p></div></div><div class="dialog-actions"><button class="button" data-close>关闭</button><button id="confirm-device" class="button" hidden>确认当前小键盘</button><button id="open-setup" class="button">打开蓝牙设置</button></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

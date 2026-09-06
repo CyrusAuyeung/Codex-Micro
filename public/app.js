@@ -103,7 +103,7 @@ function initialize(){
   };
   $('open-setup').onclick=()=>request('/api/open-setup').catch(e=>toast(e.message,true));
   $('confirm-device').onclick=async()=>{if(!confirm('将保存的配置关联到当前小键盘？确认后自定义功能保持关闭，可核对后再启用。'))return;try{await request('/api/confirm-device');await refresh();toast('已确认当前小键盘，请核对配置后启用。');}catch(e){toast(e.message,true);}};
-  $('quit-button').onclick=async()=>{try{await request('/api/quit');stopped=true;$('connection-state').textContent='Micro Windows 已退出';$('connection-state').className='status wait';$('mode-banner').hidden=true;data.status.ready=false;data.status.canLearn=false;data.status.connected=false;renderEditor();clearInterval(refreshTimer);toast('已停止 Windows 自定义，设置已保留。');}catch(e){toast(e.message,true);}};
+  window.microQuit=async()=>{if(busy)return;if(hasDrafts()&&!confirm('还有未保存的修改，退出会丢弃这些修改，是否继续？'))return;try{await request('/api/quit');stopped=true;clearInterval(refreshTimer);toast('程序已退出。');}catch(e){toast(e.message,true);}};
   window.addEventListener('pagehide',()=>{if(ownedLearnSession)fetch('/api/cancel-learn',{method:'POST',headers:{'Content-Type':'application/json','X-Micro-Panel':'1'},body:JSON.stringify({sessionId:ownedLearnSession}),keepalive:true}).catch(()=>{});});
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&ownedLearnSession)request('/api/cancel-learn',{sessionId:ownedLearnSession}).catch(()=>{});});
 }
@@ -175,8 +175,8 @@ async function refresh(){
     const s=data.status;
     $('connection-state').textContent=s.ready?(s.mode==='vendor'?'Codex Micro · 蓝牙直连':'Codex Micro KB 已连接'):s.connected?'等待系统设置完成':'尚未连接小键盘';
     $('connection-state').className='status'+(s.ready?'':' wait');
-    $('setup-banner').hidden=s.ready&&!s.error;
-    $('setup-message').textContent=s.error||'请通过 Windows 蓝牙连接小键盘，并切到青灯 Codex 模式。此版本通过独立 HID 通道改键。';
+    $('setup-banner').hidden=false;
+    $('setup-message').textContent=s.error||(s.ready?'小键盘已连接，可以识别和设置按键。':'请通过 Windows 蓝牙连接小键盘，并切到青灯 Codex 模式。');
     $('confirm-device').hidden=!s.mismatch;
     $('simulation-banner').hidden=!s.simulation;
     $('mode-banner').hidden=s.mode!=='vendor';
@@ -192,3 +192,7 @@ async function refresh(){
 }
 await refresh();
 const refreshTimer=setInterval(refresh,900);
+function hasDrafts(){return Boolean(data)&&[...drafts].some(([id,draft])=>{const saved=data.bindings[id];return draft.action!==(saved?.action||'original')||(draft.action==='custom'&&JSON.stringify({key:draft.custom.key,modifiers:[...draft.custom.modifiers].sort()})!==JSON.stringify({key:saved?.custom?.key,modifiers:[...(saved?.custom?.modifiers||[])].sort()}));});}
+window.microDesktopState=()=>({busy,dirty:hasDrafts()});
+window.addEventListener('beforeunload',e=>{if(!stopped&&(busy||hasDrafts())){e.preventDefault();e.returnValue='';}});
+window.addEventListener('micro-window-hiding',()=>{if(ownedLearnSession)request('/api/cancel-learn',{sessionId:ownedLearnSession}).catch(()=>{});});

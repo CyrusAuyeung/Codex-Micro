@@ -10,6 +10,8 @@ import {controls,actions,keys,destination,sourceSignature,CaptureCollector,valid
 import {VendorDecoder,VendorInputs,windowsEvent} from './vendor.mjs';
 import {DeviceMapping} from './device-mapping.mjs';
 import {KeyboardInput} from './input.mjs';
+import {APP_VERSION} from './app-info.mjs';
+import {Updates} from './updates.mjs';
 
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 const DATA=process.env.MICRO_WINDOWS_DATA||path.join(process.env.LOCALAPPDATA||path.join(homedir(),'AppData/Local'),'Micro Windows');
@@ -18,6 +20,7 @@ const PORT=Number(process.env.MICRO_WINDOWS_PORT||18414);
 if(!Number.isInteger(PORT)||PORT<1024||PORT>65535)throw new Error('Invalid local port');
 const ORIGIN=`http://127.0.0.1:${PORT}`,APP='codex-micro-windows-panel';
 const simulation=process.env.MICRO_WINDOWS_TEST==='1';
+const updates=new Updates({data:DATA,simulation});
 await mkdir(DATA,{recursive:true});
 const deviceMapping=new DeviceMapping({data:DATA,simulation,testOrigin:process.env.MICRO_WINDOWS_DEVICE_ORIGIN});
 await deviceMapping.init();
@@ -30,7 +33,8 @@ let native=null,nativeStatus={connected:false},decoder=new VendorDecoder(),input
 let learning=null,collector=null,latestLearn=null,learningTimer=null,settleTimer=null,lastOutputError=null;
 let serial=Promise.resolve(),shuttingDown=false,resumeAttempt=null;
 const pending=new Map(),held=new Map();
-const exclusive=fn=>{const p=serial.then(fn);serial=p.catch(()=>{});return p;};
+let operations=0;
+const exclusive=fn=>{operations++;const p=serial.then(fn).finally(()=>operations--);serial=p.catch(()=>{});return p;};
 const sameDevice=d=>Boolean(d&&state.device&&d.location_id===state.device.location_id);
 function send(command){if(!native?.stdin.writable)throw new Error('Windows 按键服务未运行。');native.stdin.write(JSON.stringify(command)+'\n');}
 function release(){held.clear();try{send({op:'release'});}catch{}}
@@ -155,18 +159,20 @@ const server=http.createServer(async(req,res)=>{
   if(req.headers.host!==`127.0.0.1:${PORT}`){sendJSON(res,403,{error:'仅允许本机访问。'});return;}
   try{
     const url=new URL(req.url,ORIGIN);
-    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:'1.1.6',simulation,deviceMapping:true});return;}
+    if(req.method==='GET'&&url.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
+    if(req.method==='GET'&&url.pathname==='/api/health'){sendJSON(res,200,{app:APP,version:APP_VERSION,simulation,deviceMapping:true,busy:operations>0});return;}
     if(req.method==='GET'&&url.pathname==='/api/device/status'){sendJSON(res,200,{app:APP,...deviceMapping.status(),localRemappingEnabled:state.enabled});return;}
     if(req.method==='GET'&&url.pathname==='/api/state'){startNative();sendJSON(res,200,{app:APP,status:status(),controls,actions,keys,bindings:state.bindings,defaults:{},savedKeyboardCount:0,learning:learning?{...learning,diagnostics:collector.diagnostics()}:null,latestLearn});return;}
     if(req.method==='POST'){
       if(req.headers.origin!==ORIGIN||req.headers['x-micro-panel']!=='1'){sendJSON(res,403,{error:'请从本机面板操作。'});return;}
       const b=await bodyJSON(req);
+      if(url.pathname==='/api/updates'){sendJSON(res,200,await updates.check(b.force===true));return;}
       if(url.pathname==='/api/input/state'){sendJSON(res,200,await keyboardInput.state(b.client));return;}
       if(url.pathname==='/api/input/record'){sendJSON(res,200,await keyboardInput.begin(b.client,b.id));return;}
       if(url.pathname==='/api/input/confirm'){sendJSON(res,200,await keyboardInput.confirm(b.client,b.id,b.revision));return;}
       if(url.pathname==='/api/input/cancel'){keyboardInput.cancel(b.client,b.id);sendJSON(res,200,{ok:true});return;}
       if(url.pathname==='/api/device/diagnose'){sendJSON(res,200,await exclusive(async()=>{try{await deviceMapping.current();return {ok:true,network:deviceMapping.network.last};}catch(e){return {ok:false,error:e.message,network:e.network||deviceMapping.network.last};}}));return;}
-      if(url.pathname==='/api/device/repair'){sendJSON(res,200,await deviceMapping.network.repair());return;}
+      if(url.pathname==='/api/device/repair'){sendJSON(res,200,await exclusive(()=>deviceMapping.network.repair()));return;}
       if(url.pathname==='/api/device/read'){sendJSON(res,200,await exclusive(()=>deviceMapping.read()));return;}
       if(url.pathname==='/api/device/prepare'){sendJSON(res,200,await exclusive(()=>deviceMapping.prepare(b)));return;}
       if(url.pathname==='/api/device/commit'){sendJSON(res,200,await exclusive(()=>deviceMapping.commit(b)));return;}
@@ -177,11 +183,11 @@ const server=http.createServer(async(req,res)=>{
       else if(url.pathname==='/api/vendor-enabled')await exclusive(()=>enable(b.enabled));
       else if(url.pathname==='/api/confirm-device')await exclusive(()=>confirmDevice());
       else if(url.pathname==='/api/open-setup'){if(!simulation)spawn('explorer.exe',['ms-settings:bluetooth'],{windowsHide:true}).on('error',console.error);}
-      else if(url.pathname==='/api/quit'){sendJSON(res,200,{ok:true});setImmediate(shutdown);return;}
+      else if(url.pathname==='/api/quit'){if(operations)throw new Error('正在与键盘通信，请完成后再退出。');sendJSON(res,200,{ok:true});setImmediate(shutdown);return;}
       else{sendJSON(res,404,{error:'没有这个操作。'});return;}
       sendJSON(res,200,{ok:true});return;
     }
-    const file={'/':'hardware.html','/codex':'index.html','/app.js':'app.js','/style.css':'style.css','/hardware.js':'hardware.js','/hardware.css':'hardware.css','/mapping-core.js':'mapping-core.js'}[url.pathname];
+    const file={'/':'hardware.html','/codex':'index.html','/app.js':'app.js','/style.css':'style.css','/hardware.js':'hardware.js','/hardware.css':'hardware.css','/mapping-core.js':'mapping-core.js','/desktop.css':'desktop.css','/desktop.js':'desktop.js'}[url.pathname];
     if(req.method!=='GET'||!file){sendJSON(res,404,{error:'页面不存在。'});return;}
     res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'}[path.extname(file)],'Cache-Control':'no-store'});res.end(await readFile(path.join(ROOT,'public',file)));
   }catch(e){sendJSON(res,400,{error:e.message||'操作未完成。',...(e.network?{network:e.network}:{})});}

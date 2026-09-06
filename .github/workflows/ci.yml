@@ -17,7 +17,7 @@ jobs:
   windows:
     name: Windows build and tests
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -31,13 +31,21 @@ jobs:
         run: .\runtime\node.exe scripts/test.mjs
       - name: Package
         run: python scripts/package.py
-      - name: Verify extracted package
+      - name: Verify installation, upgrade and uninstall
         run: python scripts/verify-package.py
+      - name: Prepare UI tests
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install chromium
+      - name: Browser and desktop UI tests
+        run: |
+          .\runtime\node.exe scripts/ui-smoke.mjs
+          .\runtime\node.exe scripts/ui-smoke.mjs --native
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-x64
           path: |
-            .build/release/*.zip
+            .build/release/*-Setup-x64.exe
             .build/release/SHA256SUMS.txt
           if-no-files-found: error
           include-hidden-files: true

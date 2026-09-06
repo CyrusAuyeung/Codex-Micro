@@ -74,7 +74,7 @@ async function pollInput(){
   }catch(e){if(recordId===id){stopRecord();render();$('record-hint').textContent='录入连接中断：'+e.message;}}finally{inputPolling=false;}
 }
 function describeVerification(v){
-  if(v.state==='verified')return readToken?'已重新读取并核对一致。请切回蓝灯普通键盘模式使用；网页和托盘程序都可以关闭。':'上次写入已核对。要查看键盘现在的配置，请重新读取。';
+  if(v.state==='verified')return readToken?'已核对一致，可切回蓝灯普通模式使用。':'上次写入已核对。';
   if(v.state==='not-applied')return '重新读取的配置与写入前相同，上次修改没有在本次读取中体现。请核对后再决定是否重新保存。';
   if(v.state==='different')return '重新读取后，'+v.differences.map(i=>C.slotLabel(i)+'（#'+i+'）').join('、')+' 与预期不同。已显示设备当前配置，请检查。';
   if(['sending','awaiting-verification','uncertain'].includes(v.state))return '上次写入还需要核对。请重新进入 Config 热点，再点击“读取键盘”。';
@@ -113,8 +113,7 @@ function render(){
   if(stopped){$('connection-state').textContent='Micro Windows 已退出';$('save-state').textContent='本地服务已停止';$('save-detail').textContent='已经保存在键盘里的快捷键仍由键盘执行。';return;}
   $('connection-state').className='status'+(readToken?'':' wait');$('connection-state').textContent=busy?'正在与键盘通信':readToken?'已读取设备配置':connection?.summary||'尚未读取键盘';
   $('save-state').textContent=verification.state==='verified'&&!changes.length?(readToken?'已核对设备配置':'上次写入已核对'):changes.length?changes.length+' 项修改尚未写入':'尚未写入新修改';
-  $('save-detail').textContent=changes.length?'本页修改尚未写入。点击预览查看差异，再确认写入键盘。':describeVerification(verification)||'读取 → 编辑 → 预览修改 → 写入 → 重新读取核对';
-  if(verification.backup)$('save-detail').textContent+=' 上次写入前备份已保存在本机。';
+  $('save-detail').textContent=changes.length?(readToken?'预览修改后，确认写入。':'先读取设备配置，再保存修改。'):describeVerification(verification)||(readToken?'选择一个键位开始编辑。':'读取配置后可以保存修改。');
 }
 function showNetwork(value){
   if(!value)return;connection=value;
@@ -150,7 +149,7 @@ for(const slot of C.LAYOUT){
   }else if(slot.kind==='other'){
     b.id='mapping-slot-'+i;b.append(make('small',C.slotReference(i)),make('strong','未读取'));$('other-slot-grid').append(b);
   }
-  b.onclick=()=>{selected=i;stopRecord();render();};cards[i]=b;
+  b.onclick=()=>{selected=i;stopRecord();render();if($('other-dialog').open)$('other-dialog').close();};cards[i]=b;
 }
 for(const m of C.MODS){
   const label=make('label'),input=document.createElement('input');input.type='checkbox';input.setAttribute('aria-label',m.label);input.onchange=()=>{draft.mod[selected]=input.checked?(draft.mod[selected]||0)|m.v:(draft.mod[selected]||0)&~m.v;render();};
@@ -214,17 +213,18 @@ $('confirm-save').onclick=async()=>{
   catch(e){readToken=null;verification={state:'uncertain'};notify(e.message+'\n请先重新读取键盘核对；本页不会自动重试。',true);}
   finally{busy=false;render();}
 };
-$('quit-button').onclick=async()=>{
+window.microDesktopState=()=>({busy,dirty:changed().length>0});
+window.addEventListener('micro-window-hiding',()=>{stopRecord();render();});
+window.microQuit=async()=>{
   if(busy||stopped)return;
   if(changed().length&&!window.confirm('本页有尚未写入的修改。退出会丢失草稿，是否继续？'))return;
-  try{await api('/api/quit');stopped=true;stopRecord();$('quit-button').disabled=true;notify('Micro Windows 已退出。已保存到键盘的配置可以继续使用。');render();}catch(e){notify(e.message,true);}
+  try{await api('/api/quit');stopped=true;stopRecord();notify('Micro Windows 已退出。');render();}catch(e){notify(e.message,true);}
 };
 render();
 try{
   const response=await fetch('/api/device/status',{cache:'no-store'}),value=await response.json();
-  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务版本不匹配，请退出旧程序并重新启动 1.1.6 版。');
+  if(!response.ok||value.app!=='codex-micro-windows-panel')throw new Error('本地服务不匹配，请退出后重新启动程序。');
   simulation=Boolean(value.simulation);$('simulation-banner').hidden=!simulation;$('layout-simulation').hidden=!simulation;verification=value;
-  const message=describeVerification(value);if(message)notify(message);
-  if(value.localRemappingEnabled)notify((message?message+'\n':'')+'原来的 Codex 本机映射仍已启用，可在“Codex 模式”页面单独关闭。');
+  const message=describeVerification(value);if(message&&value.state!=='verified')notify(message);
   render();
 }catch(e){notify('服务未就绪：'+e.message,true);}

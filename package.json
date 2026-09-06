@@ -1,14 +1,17 @@
 {
   "name": "codex-micro-windows",
-  "version": "1.1.6",
+  "version": "2.0.0",
   "private": true,
   "description": "Windows configuration and remapping tools for the Codex Micro replica keyboard",
   "type": "commonjs",
   "license": "MIT",
   "engines": { "node": ">=24.19.0" },
+  "devDependencies": { "playwright": "1.62.1" },
   "scripts": {
     "build": "python build.py",
     "test": "node scripts/test.mjs",
+    "test:ui": "node scripts/ui-smoke.mjs",
+    "test:desktop": "node scripts/ui-smoke.mjs --native",
     "check": "node scripts/check-version.mjs",
     "package": "python scripts/package.py"
   }

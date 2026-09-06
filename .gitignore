@@ -5,6 +5,9 @@ runtime/node.exe
 runtime/*.download
 *.exe
 *.pdb
+/*.dll
+/Micro Windows.exe.config
+/runtime/LICENSE.webview2.txt
 *.zip
 node_modules/
 __pycache__/
