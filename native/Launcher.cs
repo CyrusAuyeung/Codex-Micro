@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Pipes;
 using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
@@ -16,6 +17,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
 internal static class Launcher {
+    [DllImport("shell32.dll", CharSet=CharSet.Unicode)] private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
     internal const string AppId="codex-micro-windows-panel";
     internal static readonly string Version=Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
     internal static string Origin="http://127.0.0.1:18414",Data,PipeName,MutexName;
@@ -35,7 +37,7 @@ internal static class Launcher {
     }
     internal static bool Running(){var h=Health();return h!=null&&(string)h["version"]==Version;}
     private static bool FilesReady(){
-        foreach(var name in new[]{"runtime/node.exe","MicroHID.Windows.exe","MicroNetwork.Windows.exe","MicroInput.Windows.exe","package.json","app-info.mjs","updates.mjs","server.mjs","model.mjs","vendor.mjs","network.mjs","input.mjs","device-mapping.mjs","public/hardware.html","public/hardware.js","public/hardware.css","public/mapping-core.js","public/index.html","public/app.js","public/style.css","public/desktop.css","public/desktop.js","Microsoft.Web.WebView2.Core.dll","Microsoft.Web.WebView2.WinForms.dll","WebView2Loader.dll"})
+        foreach(var name in new[]{"runtime/node.exe","MicroHID.Windows.exe","MicroNetwork.Windows.exe","MicroInput.Windows.exe","package.json","app-info.mjs","updates.mjs","server.mjs","model.mjs","vendor.mjs","network.mjs","input.mjs","device-mapping.mjs","public/hardware.html","public/hardware.js","public/hardware.css","public/mapping-core.js","public/index.html","public/app.js","public/style.css","public/desktop.css","public/desktop.js","public/keyboard.css","public/micro.svg","Microsoft.Web.WebView2.Core.dll","Microsoft.Web.WebView2.WinForms.dll","WebView2Loader.dll"})
             if(!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,name)))return false;
         return true;
     }
@@ -72,6 +74,7 @@ internal static class Launcher {
     }
     [STAThread] private static int Main(string[] args) {
         Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+        SetCurrentProcessExplicitAppUserModelID("CyrusAuyeung.MicroWindows");
         if(Array.IndexOf(args,"--check-files")>=0)return FilesReady()?0:2;
         if(Array.IndexOf(args,"--self-test")>=0)return DesktopPolicy.SelfTest();
         TestMode=Array.IndexOf(args,"--ui-test")>=0;
@@ -117,23 +120,37 @@ internal static class Launcher {
         finally{if(serverStarted&&!server.HasExited){Stop();if(!server.WaitForExit(4000))server.Kill();}lock(logLock){if(log!=null){log.Dispose();log=null;}}}
     }
     private sealed class DesktopContext:ApplicationContext {
+        [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr window);
+        [DllImport("user32.dll")] private static extern IntPtr GetWindowDpiAwarenessContext(IntPtr window);
+        [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first,IntPtr second);
         private readonly Form window;
         private readonly WebView2 web;
         private readonly NotifyIcon icon;
+        private readonly Icon appIcon;
         private readonly System.Windows.Forms.Timer timer;
         private bool exiting,ready,quitting;
         internal DesktopContext(){
-            window=new Form{Text="Micro Windows",StartPosition=FormStartPosition.CenterScreen,AutoScaleMode=AutoScaleMode.Dpi,ClientSize=new Size(1100,720),MinimumSize=new Size(820,570)};
-            var area=Screen.PrimaryScreen.WorkingArea;window.Size=new Size(Math.Min(window.Width,area.Width-24),Math.Min(window.Height,area.Height-24));
+            using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("MicroWindows.Icon"))using(var source=new Icon(stream)){appIcon=(Icon)source.Clone();}
+            window=new Form{Text="Micro Windows",Icon=appIcon,StartPosition=FormStartPosition.CenterScreen};
+            window.SuspendLayout();
+            window.AutoScaleDimensions=new SizeF(96,96);window.AutoScaleMode=AutoScaleMode.Dpi;
+            window.ClientSize=new Size(1100,720);
             if(TestMode){window.ShowInTaskbar=false;window.StartPosition=FormStartPosition.Manual;window.Location=new Point(-20000,-20000);}
             web=new WebView2{Dock=DockStyle.Fill,DefaultBackgroundColor=Color.FromArgb(246,245,241)};window.Controls.Add(web);
+            window.ResumeLayout(false);
             window.FormClosing+=(s,e)=>{if(!exiting&&e.CloseReason==CloseReason.UserClosing){e.Cancel=true;HideWindow();}};
-            window.Shown+=async(s,e)=>await Initialize();
+            window.DpiChanged+=(s,e)=>SetMinimumSize(e.DeviceDpiNew);
+            window.Shown+=async(s,e)=>{
+                SetMinimumSize(GetDpiForWindow(window.Handle));
+                var area=Screen.FromControl(window).WorkingArea;window.Size=new Size(Math.Min(window.Width,area.Width-24),Math.Min(window.Height,area.Height-24));
+                await Initialize();
+            };
             var menu=new ContextMenuStrip();menu.Items.Add("打开 Micro Windows",null,(s,e)=>Activate());menu.Items.Add("退出",null,async(s,e)=>await Quit(false));
-            icon=new NotifyIcon{Icon=SystemIcons.Application,Text="Micro Windows",ContextMenuStrip=menu,Visible=!TestMode};icon.DoubleClick+=(s,e)=>Activate();
+            icon=new NotifyIcon{Icon=appIcon,Text="Micro Windows",ContextMenuStrip=menu,Visible=!TestMode};icon.DoubleClick+=(s,e)=>Activate();
             timer=new System.Windows.Forms.Timer{Interval=1000};timer.Tick+=(s,e)=>{if(server.HasExited){exiting=true;window.Close();ExitThread();}};timer.Start();
             window.Show();Task.Run((Action)Listen);
         }
+        private void SetMinimumSize(double dpi){var scale=dpi/96.0;window.MinimumSize=new Size((int)Math.Round(820*scale),(int)Math.Round(570*scale));}
         private async Task Initialize(){
             try{
                 var options=new CoreWebView2EnvironmentOptions();
@@ -165,7 +182,14 @@ internal static class Launcher {
                     if(message=="quit")await Quit(false);
                     else if(TestMode&&message=="test-hide")HideWindow();
                 };
-                core.NavigationCompleted+=(s,e)=>{ready=e.IsSuccess;};core.Navigate(Origin+"/");
+                core.NavigationCompleted+=(s,e)=>{
+                    ready=e.IsSuccess;
+                    if(TestMode)File.WriteAllText(Path.Combine(Data,"display.json"),new JavaScriptSerializer().Serialize(new {
+                        dpi=GetDpiForWindow(window.Handle),perMonitorV2=AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(window.Handle),new IntPtr(-4)),
+                        width=web.ClientSize.Width,height=web.ClientSize.Height,zoom=web.ZoomFactor,
+                        targetFramework=AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName,icon=window.Icon!=null
+                    }));
+                };core.Navigate(Origin+"/");
             }catch(Exception e){
                 if(TestMode)File.WriteAllText(Path.Combine(Data,"desktop-error.txt"),e.ToString());
                 else MessageBox.Show(window,"桌面窗口无法启动。请重新运行安装程序以检查 WebView2。\n\n"+e.Message,"Micro Windows",MessageBoxButtons.OK,MessageBoxIcon.Error);
@@ -203,7 +227,7 @@ internal static class Launcher {
                 }catch{if(!exiting)Thread.Sleep(100);}
             }
         }
-        protected override void Dispose(bool disposing){if(disposing){exiting=true;timer.Dispose();icon.Visible=false;icon.Dispose();web.Dispose();window.Dispose();}base.Dispose(disposing);}
+        protected override void Dispose(bool disposing){if(disposing){exiting=true;timer.Dispose();icon.Visible=false;icon.Dispose();web.Dispose();window.Dispose();appIcon.Dispose();}base.Dispose(disposing);}
     }
 }
 

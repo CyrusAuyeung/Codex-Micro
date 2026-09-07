@@ -30,6 +30,7 @@ OutputBaseFilename=Micro-Windows-{#AppVersion}-Setup-x64
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\micro.ico
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\Micro Windows.exe
 CloseApplications=no
@@ -49,8 +50,8 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs c
 Source: "{#BootstrapPath}"; Flags: dontcopy
 
 [Icons]
-Name: "{group}\Micro Windows"; Filename: "{app}\Micro Windows.exe"
-Name: "{autodesktop}\Micro Windows"; Filename: "{app}\Micro Windows.exe"; Tasks: desktopicon
+Name: "{group}\Micro Windows"; Filename: "{app}\Micro Windows.exe"; IconFilename: "{app}\Micro Windows.exe"; AppUserModelID: "CyrusAuyeung.MicroWindows"
+Name: "{autodesktop}\Micro Windows"; Filename: "{app}\Micro Windows.exe"; IconFilename: "{app}\Micro Windows.exe"; AppUserModelID: "CyrusAuyeung.MicroWindows"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Micro Windows.exe"; Description: "启动 Micro Windows"; Flags: nowait postinstall skipifsilent

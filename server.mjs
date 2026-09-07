@@ -187,9 +187,9 @@ const server=http.createServer(async(req,res)=>{
       else{sendJSON(res,404,{error:'没有这个操作。'});return;}
       sendJSON(res,200,{ok:true});return;
     }
-    const file={'/':'hardware.html','/codex':'index.html','/app.js':'app.js','/style.css':'style.css','/hardware.js':'hardware.js','/hardware.css':'hardware.css','/mapping-core.js':'mapping-core.js','/desktop.css':'desktop.css','/desktop.js':'desktop.js'}[url.pathname];
+    const file={'/':'hardware.html','/codex':'index.html','/app.js':'app.js','/style.css':'style.css','/hardware.js':'hardware.js','/hardware.css':'hardware.css','/mapping-core.js':'mapping-core.js','/desktop.css':'desktop.css','/desktop.js':'desktop.js','/keyboard.css':'keyboard.css','/micro.svg':'micro.svg'}[url.pathname];
     if(req.method!=='GET'||!file){sendJSON(res,404,{error:'页面不存在。'});return;}
-    res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'}[path.extname(file)],'Cache-Control':'no-store'});res.end(await readFile(path.join(ROOT,'public',file)));
+    res.writeHead(200,{'Content-Type':{'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'}[path.extname(file)],'Cache-Control':'no-store'});res.end(await readFile(path.join(ROOT,'public',file)));
   }catch(e){sendJSON(res,400,{error:e.message||'操作未完成。',...(e.network?{network:e.network}:{})});}
 });
 const heartbeat=setInterval(()=>{try{send({op:'heartbeat'});}catch{}},2000);

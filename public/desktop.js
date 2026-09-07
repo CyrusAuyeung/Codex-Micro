@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-// Scale the existing 416 px illustration as one piece, preserving every internal proportion.
+// Layout zoom paints text at the target resolution instead of scaling a composited bitmap.
 const keyboard = document.querySelector('.keyboard-case');
 const surface = keyboard.closest('.drawing-surface'), frame = document.createElement('div');
 frame.className = 'keyboard-frame'; keyboard.before(frame); frame.append(keyboard);
@@ -7,9 +7,9 @@ const resizeKeyboard = () => {
   const css = getComputedStyle(surface), legend = surface.querySelector('.mapping-legend,.drawing-legend');
   const width = surface.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
   const height = surface.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - (legend?.offsetHeight || 0) - 24;
-  const size = Math.max(1, Math.min(416, width, height));
+  const size = Math.max(1, Math.floor(Math.min(416, width, height)));
   frame.style.width = frame.style.height = size + 'px';
-  keyboard.style.transform = `scale(${size / 416})`;
+  keyboard.style.zoom = size / 416;
 };
 new ResizeObserver(resizeKeyboard).observe(surface);
 resizeKeyboard();

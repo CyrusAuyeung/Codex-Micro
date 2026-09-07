@@ -12,7 +12,7 @@ RUNTIME = [
     'Micro Windows.exe', 'Micro Windows.exe.config', 'MicroHID.Windows.exe', 'MicroNetwork.Windows.exe', 'MicroInput.Windows.exe',
     'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll',
     'package.json', 'app-info.mjs', 'updates.mjs', 'server.mjs', 'model.mjs', 'vendor.mjs', 'device-mapping.mjs', 'network.mjs', 'input.mjs',
-    'public/index.html', 'public/app.js', 'public/style.css', 'public/desktop.js', 'public/desktop.css',
+    'public/index.html', 'public/app.js', 'public/style.css', 'public/desktop.js', 'public/desktop.css', 'public/keyboard.css', 'public/micro.svg',
     'public/hardware.html', 'public/hardware.js', 'public/hardware.css', 'public/mapping-core.js',
     'runtime/node.exe', 'runtime/LICENSE.node.txt', 'runtime/LICENSE.webview2.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
 ]

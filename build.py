@@ -26,14 +26,17 @@ def main():
     version = json.loads((ROOT / 'package.json').read_text(encoding='utf-8'))['version']
     assembly = ROOT / '.build/AssemblyInfo.cs'
     assembly.write_text('[assembly:System.Reflection.AssemblyVersion("' + version + '.0")]\n'
-                        '[assembly:System.Reflection.AssemblyProduct("Micro Windows")]\n', encoding='utf-8')
+                        '[assembly:System.Reflection.AssemblyProduct("Micro Windows")]\n'
+                        '[assembly:System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]\n', encoding='utf-8')
     base = [csc, '/nologo', '/optimize+', '/platform:x64', '/r:System.Web.Extensions.dll',
             '/win32manifest:' + str(ROOT / 'native/app.manifest')]
     targets = [
         ('MicroHID.Windows.exe', ['/target:exe'], ['HidDevice.cs', 'KeyboardOutput.cs', 'MicroHID.cs']),
         ('Micro Windows.exe', ['/target:winexe', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
                                '/r:' + str(ROOT / 'Microsoft.Web.WebView2.Core.dll'),
-                               '/r:' + str(ROOT / 'Microsoft.Web.WebView2.WinForms.dll')], ['Launcher.cs']),
+                               '/r:' + str(ROOT / 'Microsoft.Web.WebView2.WinForms.dll'),
+                               '/win32icon:' + str(ROOT / 'assets/micro.ico'),
+                               '/resource:' + str(ROOT / 'assets/micro.ico') + ',MicroWindows.Icon'], ['Launcher.cs']),
         ('MicroNetwork.Windows.exe', ['/target:exe', '/r:System.Windows.Forms.dll'], ['NetworkInfo.cs', 'NetworkRepair.cs']),
         ('MicroInput.Windows.exe', ['/target:exe', '/r:System.Windows.Forms.dll'], ['MicroInput.cs']),
     ]

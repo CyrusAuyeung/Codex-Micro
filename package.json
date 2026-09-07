@@ -1,6 +1,6 @@
 {
   "name": "codex-micro-windows",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Windows configuration and remapping tools for the Codex Micro replica keyboard",
   "type": "commonjs",

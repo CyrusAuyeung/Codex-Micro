@@ -84,6 +84,7 @@ function render(){
   const changes=changed(),missing=C.missing(draft),locked=busy||stopped;
   for(let i=0;i<16;i++){
     cards[i].querySelector('strong').textContent=C.parts(draft,i).join(' + ');
+    cards[i].querySelector('.key-function')?.classList.toggle('empty',missing.includes(i));
     cards[i].setAttribute('aria-label',C.slotLabel(i)+'，'+C.LAYOUT[i].location+'，'+C.parts(draft,i).join(' + '));
     cards[i].title=C.slotLabel(i)+' · '+C.slotReference(i)+'\n'+C.parts(draft,i).join(' + ');
     cards[i].setAttribute('aria-pressed',String(i===selected));cards[i].classList.toggle('selected',i===selected);cards[i].classList.toggle('modified',changes.includes(i));cards[i].classList.toggle('unread',missing.includes(i));cards[i].disabled=locked;

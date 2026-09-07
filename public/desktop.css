@@ -17,18 +17,18 @@ button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{
 .hardware-toolbar,.mode-banner{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;margin:0;padding:8px 0;border:0;background:none;border-radius:0}
 .read-summary,.mode-banner strong{font-size:12px;color:var(--sub);font-weight:400}.read-summary{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.read-summary strong{font-weight:400}
 .toolbar-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.hardware-toolbar .button,.mode-banner .button{height:34px;min-height:34px;padding:7px 13px;font-size:12px;line-height:18px}
 .button{font-size:12px;padding:8px 13px;min-height:34px;border-radius:6px}.button.primary{background:var(--accent);border-color:var(--accent);color:white}
 .setup-banner{padding:10px 14px;margin:6px 0;font-size:12px}.setup-banner p{margin:0}
 #simulation-banner{margin:0 0 6px;padding:5px 12px;flex:none}#simulation-banner strong{font-size:11px;font-weight:400}
 .device-notice{flex:none;max-height:62px;overflow:auto;margin:0 0 8px;padding:8px 12px;font-size:12px;line-height:1.55;white-space:pre-line}
 .mapping-workspace,.workspace{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,1.4fr) minmax(305px,1fr);gap:0;padding:0;background:var(--white);border:1px solid var(--line);border-radius:10px;overflow:hidden;align-items:stretch;margin:0}
 .mapping-board.physical-board,.device-section{min-height:0;min-width:0;padding:16px 20px 10px;display:flex;flex-direction:column}
-.section-head{flex:none;margin:0 0 10px;align-items:center}.section-head h2{font-size:15px;margin:0}.count{font-size:10px}
+.section-head{flex:none;height:22px;margin:0 0 10px;align-items:center}.section-head h2{font-size:15px;margin:0}.count{font-size:10px;padding-top:0}.board-tools{display:flex;align-items:center;gap:14px}
 .drawing-surface,.physical-board .drawing-surface{flex:1;min-height:0;min-width:0;margin:0;padding:12px 12px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;container-type:size;background-size:14px 14px}
 .keyboard-frame{flex:none;position:relative}
-.keyboard-frame .keyboard-case{width:416px;height:416px;max-width:none;min-height:0;margin:0;transform-origin:top left}
-.drawing-legend,.physical-board .mapping-legend{margin:16px 0 0;min-height:14px;display:flex;justify-content:center;flex-wrap:wrap;gap:8px 16px;font-size:9px;flex:none}
-.advanced-link{align-self:flex-start;margin-top:8px;padding:2px 0;color:var(--sub);font-size:10px}.advanced-link span{margin-left:8px}
+.drawing-legend,.physical-board .mapping-legend{margin:16px 0 0;height:28px;min-height:28px;display:flex;align-content:center;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 16px;font-size:9px;flex:none}
+.advanced-link{padding:2px 0;color:var(--sub);font-size:10px}.advanced-link span{margin-left:8px}
 .mapping-editor,.editor{min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 22px;border:0;border-left:1px solid var(--line)}
 .editor-heading,.mapping-editor .editor-heading{margin:0 0 12px}.editor-heading h2,.mapping-editor h2{font-size:20px;margin:0}.editor-heading p,.mapping-editor #selected-location{font-size:11px;line-height:1.5;margin:5px 0;color:var(--sub)}
 .slot-reference{font-size:9px;padding:2px 5px}

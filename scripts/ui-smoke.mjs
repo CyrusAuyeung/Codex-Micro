@@ -38,13 +38,50 @@ try {
   else{browser=await chromium.launch({...(process.env.MICRO_BROWSER_CHANNEL?{channel:process.env.MICRO_BROWSER_CHANNEL}:{}),headless:true});context=await browser.newContext({viewport:{width:1100,height:720}});page=await context.newPage();}
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.goto(origin);await page.locator('#mapping-key13').waitFor();
+  if(native){
+    const display=await until(async()=>JSON.parse(await readFile(path.join(work,'data/display.json'),'utf8')));
+    const renderer=await page.evaluate(()=>({width:innerWidth,height:innerHeight,dpr:devicePixelRatio}));
+    assert.equal(display.perMonitorV2,true,'The real WinForms HWND must be per-monitor V2, not bitmap-scaled by Windows');
+    assert.equal(display.targetFramework,'.NETFramework,Version=v4.8');assert.equal(display.icon,true);assert.equal(display.zoom,1);
+    assert.ok(Math.abs(renderer.dpr-display.dpi/96)<0.01,JSON.stringify({display,renderer}));
+    assert.ok(Math.abs(renderer.width*renderer.dpr-display.width)<=2,JSON.stringify({display,renderer}));
+    assert.ok(Math.abs(renderer.height*renderer.dpr-display.height)<=2,JSON.stringify({display,renderer}));
+    console.log('Actual native display: '+JSON.stringify({display,renderer}));
+  }
   async function visibleInViewport(selector){const r=await page.locator(selector).boundingBox();const size=await page.evaluate(()=>({w:innerWidth,h:innerHeight}));assert.ok(r&&r.x>=0&&r.y>=0&&r.x+r.width<=size.w+1&&r.y+r.height<=size.h+1,`${selector} outside ${JSON.stringify(size)}: ${JSON.stringify(r)}`);}
+  async function keyboardGeometry(){
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    return page.evaluate(()=>{
+      const selectors=['.shell','.masthead','.mode-tabs','.hardware-toolbar,.mode-banner','.drawing-surface','.section-head','.keyboard-case','.keyboard-grid','.dial-rim','.dial-face','.stick-base','.stick-cap','.stick-cap i','.stick-cap b','.touch-dot','.screw.tl','.screw.br','.orientation','.case-caption'];
+      for(let i=1;i<=13;i++)selectors.push('.hardware:has(.key-number):nth-child('+(i+3)+')');
+      return selectors.map(selector=>{const el=document.querySelector(selector),r=el.getBoundingClientRect(),c=getComputedStyle(el);return {selector,x:r.x,y:r.y,width:r.width,height:r.height,padding:c.padding,border:c.borderWidth,radius:c.borderRadius};});
+    });
+  }
+  async function compareModes(label){
+    await until(()=>page.locator('#simulation-banner').isVisible());const ordinary=await keyboardGeometry();
+    await page.locator('.mode-tabs a[href="/codex"]').click();await page.locator('#control-key13').waitFor();await until(()=>page.locator('#mode-banner').isVisible());
+    await visibleInViewport('#control-key13');await visibleInViewport('#save-button');const codex=await keyboardGeometry();
+    for(let i=0;i<ordinary.length;i++)for(const field of Object.keys(ordinary[i])){
+      const a=ordinary[i][field],b=codex[i][field];if(typeof a==='number')assert.ok(Math.abs(a-b)<0.1,`${label}: ${ordinary[i].selector} ${field} differs: ${a} vs ${b}`);else assert.equal(a,b,`${label}: ${ordinary[i].selector} ${field}`);
+    }
+    await page.screenshot({path:path.join(work,`codex-${label}.png`)});
+    await page.locator('.mode-tabs a[href="/"]').click();await page.locator('#mapping-key13').waitFor();
+  }
   for(const size of (native?[null]:[{width:1100,height:720},{width:900,height:570},{width:1366,height:768}])){
     if(size)await page.setViewportSize(size);
     await visibleInViewport('#mapping-key13');await visibleInViewport('#record-button');await visibleInViewport('#save-button');
     const shape=await page.locator('.keyboard-case').boundingBox();assert.ok(Math.abs(shape.width-shape.height)<1,'keyboard must retain its square proportions');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.screenshot({path:path.join(work,`ordinary-${size?.width||'native'}.png`)});
+    await compareModes(size?.width||'native');
+  }
+  if(!native){
+    const protocol=await context.newCDPSession(page);
+    for(const dpr of [1.25,1.5,1.75,2]){
+      await protocol.send('Emulation.setDeviceMetricsOverride',{width:1100,height:720,deviceScaleFactor:dpr,mobile:false});
+      await compareModes('scale-'+dpr);await page.screenshot({path:path.join(work,`ordinary-scale-${dpr}.png`)});
+    }
+    await protocol.send('Emulation.clearDeviceMetricsOverride');await protocol.detach();
   }
   if(!native)await page.setViewportSize({width:1100,height:720});
   await page.locator('[data-dialog="help-dialog"]').click();await page.locator('#help-dialog [data-close]').click();
@@ -80,5 +117,5 @@ try {
   if(native){await page.evaluate(()=>window.chrome.webview.postMessage('test-hide'));await until(async()=>await signal('--test-window-hidden')===0);const hiddenState=await(await fetch(origin+'/api/state')).json();assert.equal(hiddenState.status.enabled,true,'closing the window must preserve local remapping');assert.equal(await signal('--activate'),0);assert.equal(await signal('--test-window-visible'),0);assert.equal(await signal('--shutdown-if-idle'),0);assert.equal(await exit,0);}
   else{await page.setViewportSize({width:430,height:760});await page.screenshot({path:path.join(work,'narrow.png')});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await fetch(origin+'/api/quit',{method:'POST',headers:{Origin:origin,'X-Micro-Panel':'1','Content-Type':'application/json'},body:'{}'});await exit;}
   assert.deepEqual(errors,[]);
-  console.log(`${native?'Desktop WebView2':'Browser'} UI passed: first viewport, help, diagnostics, recording, save/readback, rotary mapping, update UI${native?', draft protection, hide/restore and shutdown':''}. Artifacts: ${work}`);
+  console.log(`${native?'Desktop WebView2':'Browser'} UI passed: identical mode geometry, DPI rendering, first viewport, help, diagnostics, recording, save/readback, rotary mapping, update UI${native?', draft protection, hide/restore and shutdown':''}. Artifacts: ${work}`);
 }finally{if(child.exitCode===null){await fetch(origin+'/api/quit',{method:'POST',headers:{Origin:origin,'X-Micro-Panel':'1','Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(2000)}).catch(()=>{});await Promise.race([exit,new Promise(r=>setTimeout(r,3000))]);if(child.exitCode===null)child.kill();}if(browser)await browser.close().catch(()=>{});await device.close();}

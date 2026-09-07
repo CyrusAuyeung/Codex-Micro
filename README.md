@@ -1,6 +1,8 @@
 # Micro Windows
 
-Codex Micro 复刻键盘的 Windows 配置工具。按实体布局选择键位，将普通模式的快捷键保存进键盘；也可以在 Codex 模式下，把按键、旋钮和摇杆动作映射为 Windows 功能。
+<img src="public/micro.svg" width="72" alt="Micro Windows 图标">
+
+Codex Micro 复刻键盘的 Windows 桌面配置工具。按实体布局选择键位，将普通模式的快捷键保存进键盘；也可以在 Codex 模式下，把按键、旋钮和摇杆动作映射为 Windows 功能。
 
 [下载最新版](https://github.com/CyrusAuyeung/Codex-Micro/releases/latest) · [所有版本](https://github.com/CyrusAuyeung/Codex-Micro/releases) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/CyrusAuyeung/Codex-Micro/issues/new/choose)
 
@@ -100,6 +102,7 @@ python scripts/package.py
 | `public/` | 两种配置页面、实体布局和录入交互 |
 | `server.mjs`、其他根目录 `.mjs` | 本地服务、设备映射、输入和网络适配 |
 | `native/` | 启动器、HID、网络和组合键拦截辅助程序 |
+| `assets/` | Windows 图标与图标生成脚本 |
 | `installer/` | 当前用户安装、WebView2 补装和卸载流程 |
 | `tests/` | 单元测试、接口测试和模拟设备 |
 | `scripts/` | 运行时准备、版本检查、打包和发布工具 |

@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Micro Windows · 普通键盘配置</title>
-  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/hardware.css"><link rel="stylesheet" href="/desktop.css">
+  <link rel="icon" href="/micro.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/hardware.css"><link rel="stylesheet" href="/desktop.css"><link rel="stylesheet" href="/keyboard.css">
   <script type="module" src="/hardware.js"></script>
   <script type="module" src="/desktop.js"></script>
 </head>
@@ -19,20 +20,19 @@
     <div class="hardware-toolbar"><div class="read-summary"><strong id="read-label">先连接配置热点，再读取键盘</strong><span id="read-detail" hidden></span></div><div class="toolbar-actions"><button class="text-button" data-dialog="network-dialog">连接诊断</button><button id="import-button" class="button">导入</button><button id="export-button" class="button">导出草稿</button><button id="read-button" class="button">读取键盘 <span aria-hidden="true">↻</span></button></div><input type="file" id="import-file" accept=".json,application/json" aria-label="导入键位 JSON" hidden></div>
     <div class="mapping-workspace">
       <section class="mapping-board physical-board" aria-labelledby="board-title">
-        <div class="section-head"><h2 id="board-title">选择键位</h2><span id="change-count" class="count">0 项修改</span></div>
+        <div class="section-head"><h2 id="board-title">选择键位</h2><div class="board-tools"><span id="change-count" class="count">0 项修改</span><button class="text-button advanced-link" data-dialog="other-dialog">其他配置位 <span id="other-slot-state">2 项</span></button></div></div>
         <div class="drawing-surface">
           <div class="keyboard-case">
             <span class="screw tl" aria-hidden="true"></span><span class="screw tr" aria-hidden="true"></span><span class="screw bl" aria-hidden="true"></span><span class="screw br" aria-hidden="true"></span><span class="orientation" aria-hidden="true">↑</span>
             <div id="mapping-grid" class="keyboard-grid" role="group" aria-label="普通键盘俯视图：13 颗按键和左上旋钮按下">
-              <button id="mapping-dial" type="button" class="hardware special dial" aria-label="旋钮按下"><span class="dial-rim" aria-hidden="true"><span class="dial-face"><i></i><strong class="dial-shortcut">未读取</strong></span></span><span class="special-label">旋钮 · 按下</span></button>
+              <button id="mapping-dial" type="button" class="hardware special dial" aria-label="旋钮按下"><span class="dial-rim" aria-hidden="true"><span class="dial-face"><i></i><strong class="dial-shortcut" hidden>未读取</strong></span></span><span class="special-label">旋钮</span></button>
               <div class="hardware special stick fixed-control" role="img" aria-label="右上角摇杆，原厂配置页未开放方向设置" title="摇杆方向未开放设置"><span class="stick-base" aria-hidden="true"><span class="stick-cap"><i></i><b></b></span></span><span class="special-label">摇杆</span></div>
-              <div class="hardware special touch fixed-control" role="img" aria-label="左下角触摸点，用于切换模式" title="触摸点用于切换模式"><span class="touch-dot" aria-hidden="true"></span><span class="special-label">触摸 · 切换模式</span></div>
+              <div class="hardware special touch fixed-control" role="img" aria-label="左下角触摸点，用于切换模式" title="触摸点用于切换模式"><span class="touch-dot" aria-hidden="true"></span><span class="special-label">触摸点</span></div>
             </div>
-            <div class="case-caption">CODEX MICRO KB <span>·</span> 13 KEYS</div>
+            <div class="case-caption">CODEX MICRO KB <span>·</span> PERSONAL CONTROL</div>
           </div>
           <div class="mapping-legend"><span><i></i>当前选择</span><span><i class="changed"></i>尚未写入</span><span id="layout-simulation" hidden>模拟数据 · 未写入实物</span></div>
         </div>
-        <button class="text-button advanced-link" data-dialog="other-dialog">其他配置位 <span id="other-slot-state">2 项</span></button>
       </section>
       <section class="mapping-editor" aria-labelledby="selected-label"><div class="editor-heading"><h2 id="selected-label">按键 1</h2><p id="selected-location">第一排 · 从左数第二个位置</p><span id="selected-reference" class="slot-reference">原厂编号 #1 · AG00</span></div><div id="shortcut-preview" class="hardware-shortcut" aria-live="polite">未读取</div><div id="quick-actions" class="hardware-presets" aria-label="常用快捷键"></div><button id="record-button" class="button">录入组合键</button><p id="record-hint" class="field-help">可反复试按，确认后使用。</p><fieldset class="hardware-modifiers"><legend>修饰键</legend><div id="modifier-choices"></div></fieldset><p id="right-modifiers" class="field-help" hidden></p><label for="key-select" class="field-label">主键</label><select id="key-select"></select><div class="restore-line"><button id="restore-button" class="text-button" disabled>还原此键</button><span id="raw-value" class="field-help">尚未读取</span></div></section>
     </div>

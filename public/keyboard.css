@@ -1,0 +1,34 @@
+/* One physical illustration for both modes. Fit the whole case without changing its geometry. */
+.keyboard-case{position:relative;width:416px;height:416px;margin:0;padding:42px 32px 34px;background:var(--white);border:1.5px solid #6f7769;border-radius:38px;box-shadow:0 7px 0 -2px #f0f0e9,0 7px 0 -.5px #8e9588,0 18px 24px -19px #454d3670}
+.screw{position:absolute;width:8px;height:8px;border:1px solid #929a88;border-radius:50%}
+.screw:after{content:"";position:absolute;top:3px;left:1px;width:4px;height:1px;background:#adb49f;transform:rotate(-35deg)}
+.tl{top:18px;left:20px}.tr{top:18px;right:20px}.bl{bottom:18px;left:20px}.br{bottom:18px;right:20px}
+.orientation{position:absolute;top:10px;left:calc(50% - 4px);font-size:20px;color:#7f8974}
+.keyboard-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));height:100%;gap:10px}
+.hardware{position:relative;min-width:0;min-height:0;padding:0;outline-offset:2px!important;background:transparent;border:1.3px solid #939b88;border-radius:10px;box-shadow:inset 0 -4px 0 #efefe7;transition:background .15s,border-color .15s}
+.hardware:not(.special):before{content:"";position:absolute;inset:5px 5px 8px;border:1px solid #e0e4d8;border-radius:6px;pointer-events:none}
+.hardware:hover{border-color:var(--accent);background:#f8eee8}
+.hardware.selected{background:var(--accent-soft);border-color:var(--accent);box-shadow:inset 0 -4px 0 #e6c5b4}
+.hardware.selected:before{border-color:#e8cabb}
+.key-number{position:absolute;top:11px;left:12px;font-size:11px;font-weight:600;color:#979f8a}
+.hardware.selected .key-number{color:var(--accent)}
+.key-function{position:absolute;left:9px;right:9px;bottom:14px;font-size:11px;font-weight:400;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;letter-spacing:0}
+.key-function.empty{color:#b3b9a8;font-size:10px}
+.key-assigned{position:absolute;right:10px;top:12px;width:4px;height:4px;border-radius:50%;background:var(--green)}
+.special{border:0;border-radius:6px;box-shadow:none!important;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+.special.selected{border:0;background:#f6e9e0;box-shadow:0 0 0 1.5px var(--accent)!important}
+.special-label{font-size:9px;color:#8b9380;letter-spacing:.6px;white-space:nowrap}
+.special.selected .special-label{color:var(--accent)}
+.dial{grid-area:1/1}
+.dial-rim{width:64px;height:64px;flex-shrink:0;border:1.4px solid #535e48;border-radius:50%;display:grid;place-items:center;background:repeating-conic-gradient(#89937d 0deg 1deg,transparent 1deg 9deg);padding:4px}
+.dial-face{width:100%;height:100%;background:var(--white);border:1px solid #90997f;border-radius:50%;position:relative}
+.dial-face i{position:absolute;width:2px;height:11px;left:calc(50% - 1px);top:4px;background:#657353}
+.stick{grid-area:1/4}
+.stick-base{width:65px;height:65px;flex-shrink:0;display:grid;place-items:center;border:1px solid #a7ae9a;border-radius:9px}
+.stick-cap{width:53px;height:53px;background:#ebeee5;border:1.3px solid #59644e;border-radius:50%;position:relative;box-shadow:inset 0 -4px 0 #d8ddcf}
+.stick-cap i,.stick-cap b{position:absolute;background:#87927a;border-radius:1px;opacity:.75}
+.stick-cap i{left:15px;right:15px;top:25px;height:1px}.stick-cap b{top:15px;bottom:15px;left:25px;width:1px}
+.touch{grid-area:4/1}
+.touch-dot{width:35px;height:35px;border:1.3px solid #67735b;border-radius:50%;background:#e4e9dc;box-shadow:inset 0 0 0 5px var(--white)}
+.case-caption{position:absolute;bottom:14px;left:0;right:0;font-size:7px;color:#939b89;text-align:center;letter-spacing:1.5px}
+.case-caption span{margin:0 7px}
