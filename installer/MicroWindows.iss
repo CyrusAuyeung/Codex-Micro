@@ -56,9 +56,17 @@ Name: "{autodesktop}\Micro Windows"; Filename: "{app}\Micro Windows.exe"; IconFi
 [Run]
 Filename: "{app}\Micro Windows.exe"; Description: "启动 Micro Windows"; Flags: nowait postinstall skipifsilent
 
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Micro Windows"; ValueData: """{app}\Micro Windows.exe"" --background"; Flags: uninsdeletevalue; Check: HadStartup
+
 [Code]
 const
   WebViewKey = 'Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+function HadStartup: Boolean;
+begin
+  Result := RegValueExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Micro Windows');
+end;
 
 function HasWebView: Boolean;
 var Version: String;
@@ -100,4 +108,10 @@ function InitializeUninstall: Boolean;
 begin
   Result := CloseMicro(UninstallSilent);
   if not Result and not UninstallSilent then MsgBox('请先保存修改并从托盘退出 Micro Windows，再卸载。', mbInformation, MB_OK);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Micro Windows');
 end;

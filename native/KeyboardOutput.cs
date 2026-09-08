@@ -59,6 +59,11 @@ internal sealed class KeyboardOutput {
             foreach(int key in owned.ToArray())if(output(key,false))owned.Remove(key);
         }
     }
+    internal void Scroll(string axis,int amount){
+        if((axis!="vertical"&&axis!="horizontal")||amount==0||Math.Abs(amount)>10)throw new ArgumentException("Invalid scroll amount");
+        var input=new Input {Type=0,Data=new Payload {Mouse=new Mouse {Data=unchecked((uint)(amount*120)),Flags=axis=="horizontal"?0x1000u:0x0800u,Extra=new UIntPtr(0x4D435257)}}};
+        if(SendInput(1,new[]{input},Marshal.SizeOf(typeof(Input)))!=1)throw new InvalidOperationException("Windows 未接受滚动操作。");
+    }
     internal static void SelfTest() {
         var events=new List<string>();var k=new KeyboardOutput((key,down)=>{events.Add(key+":"+down);return true;},key=>false);
         k.Set("a",67,new[]{162},true);k.Set("b",86,new[]{162},true);k.Set("a",67,new[]{162},true);

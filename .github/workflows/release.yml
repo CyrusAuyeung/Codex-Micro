@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号，与 main 中的 package.json 一致，例如 2.0.0'
+        description: '版本号，与 main 中的 package.json 一致，例如 2.1.0'
         required: true
         type: string
 

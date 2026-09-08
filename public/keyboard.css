@@ -16,7 +16,8 @@
 .key-function.empty{color:#b3b9a8;font-size:10px}
 .key-assigned{position:absolute;right:10px;top:12px;width:4px;height:4px;border-radius:50%;background:var(--green)}
 .special{border:0;border-radius:6px;box-shadow:none!important;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
-.special.selected{border:0;background:#f6e9e0;box-shadow:0 0 0 1.5px var(--accent)!important}
+.special:hover,.special.selected{border:0;background:transparent;box-shadow:none!important}
+.special:focus-visible{outline:none}
 .special-label{font-size:9px;color:#8b9380;letter-spacing:.6px;white-space:nowrap}
 .special.selected .special-label{color:var(--accent)}
 .dial{grid-area:1/1}
@@ -30,5 +31,13 @@
 .stick-cap i{left:15px;right:15px;top:25px;height:1px}.stick-cap b{top:15px;bottom:15px;left:25px;width:1px}
 .touch{grid-area:4/1}
 .touch-dot{width:35px;height:35px;border:1.3px solid #67735b;border-radius:50%;background:#e4e9dc;box-shadow:inset 0 0 0 5px var(--white)}
+/* Highlight the physical circular control, leaving its label and grid cell clear. */
+.special:not(.fixed-control):not(:disabled):hover :is(.dial-rim,.stick-cap,.touch-dot){border-color:var(--accent)}
+.special.selected :is(.dial-rim,.stick-cap,.touch-dot){border-color:var(--accent);outline:2px solid var(--accent);outline-offset:2px}
+.dial.selected .dial-face,.stick.selected .stick-cap,.touch.selected .touch-dot{background:var(--accent-soft)}
+.special:focus-visible :is(.dial-rim,.stick-cap,.touch-dot){outline:2px solid var(--accent);outline-offset:5px}
+.special.pressed :is(.dial-rim,.stick-cap,.touch-dot){border-color:var(--green);box-shadow:0 0 0 3px var(--green)}
+.dial.pressed .dial-face,.stick.pressed .stick-cap,.touch.pressed .touch-dot{background:#dcebd5}
+.special.pressed .special-label{color:var(--green)}
 .case-caption{position:absolute;bottom:14px;left:0;right:0;font-size:7px;color:#939b89;text-align:center;letter-spacing:1.5px}
 .case-caption span{margin:0 7px}

@@ -9,7 +9,7 @@
   keySlots.forEach((index,i)=>{const [row,col]=keyPositions[i];LAYOUT[index]={index,code:POS[index],kind:'key',id:'key'+(i+1),label:'按键 '+(i+1),short:String(i+1).padStart(2,'0'),row,col,location:'第'+['一','二','三','四'][row]+'排 · 从左数第'+['一','二','三','四'][col]+'个位置'};});
   const slotLabel = index => LAYOUT[index].label;
   const slotReference = index => '#'+index+' · '+(POS[index]||'未命名');
-  const MODS = [{v:1,label:'Ctrl'},{v:2,label:'Shift'},{v:4,label:'Alt'},{v:8,label:'Win'}];
+  const MODS = [{v:1,label:'Ctrl'},{v:2,label:'Shift'},{v:4,label:'Alt'},{v:8,label:'Win'},{v:16,label:'右 Ctrl'},{v:32,label:'右 Shift'},{v:64,label:'右 Alt'},{v:128,label:'右 Win'}];
   const keys = [];
   function add(n, label, code, group) { keys.push({n:n, label:label, code:code, group:group}); }
   add(0,'无主键','', '常用');

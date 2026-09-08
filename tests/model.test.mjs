@@ -17,7 +17,7 @@ test('Windows actions use Ctrl, Win and VK media keys',()=>{
   assert.equal(windowsEvent(destination({action:'original'})),null);
   assert.equal(windowsEvent(destination({action:'disabled'})),null);
   for(const action of actions.filter(a=>a.id!=='custom'))windowsEvent(destination({action:action.id}));
-  for(const key of keys)assert.ok(windowsEvent(destination({action:'custom',custom:{key,modifiers:[]}})));
+  for(const key of keys)assert.ok(windowsEvent(destination({action:'custom',custom:{key,modifiers:key==='modifiers_only'?['right_control']:[]}})));
 });
 test('custom shortcuts validate keys and retain right-hand Windows modifiers',()=>{
   assert.deepEqual(windowsEvent(destination({action:'custom',custom:{key:'f24',modifiers:['right_control','right_alt']}})),{op:'key',code:135,modifiers:[163,165]});

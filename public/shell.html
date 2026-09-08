@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Micro Windows</title>
+  <link rel="icon" href="/micro.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/hardware.css"><link rel="stylesheet" href="/desktop.css"><link rel="stylesheet" href="/keyboard.css"><link rel="stylesheet" href="/next.css">
+  <link rel="modulepreload" href="/app.js"><link rel="modulepreload" href="/hardware.js">
+  <script type="module" src="/desktop.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand"><img class="brand-icon" src="/micro.svg" alt=""><h1>Micro Windows</h1></div>
+      <div class="header-tools"><span id="connection-state" class="status wait">正在连接本地服务</span><button class="button compact" data-dialog="help-dialog">帮助</button><button id="about-button" class="button compact">关于<span id="update-dot" hidden> · 新版</span></button></div>
+    </header>
+    <nav class="mode-tabs" aria-label="配置方式"><a href="/">普通模式 <span>键盘执行</span></a><a href="/codex">Codex 模式 <span>电脑执行</span></a></nav>
+    <div id="mode-host" aria-live="off"></div>
+  </main>
+</body>
+</html>

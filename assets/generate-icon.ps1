@@ -8,7 +8,7 @@ $font = New-Object Drawing.FontFamily('Georgia')
 $mark.AddString('m', $font, [int][Drawing.FontStyle]::Italic, 128, [Drawing.PointF]::new(0, 0), [Drawing.StringFormat]::GenericTypographic)
 $bounds = $mark.GetBounds()
 $scale = 94 / $bounds.Width
-$matrix = [Drawing.Drawing2D.Matrix]::new([single]$scale, 0, 0, [single]$scale, [single](14 - $bounds.X * $scale), [single](109 - $bounds.Bottom * $scale))
+$matrix = [Drawing.Drawing2D.Matrix]::new([single]$scale, 0, 0, [single]$scale, [single](14 - $bounds.X * $scale), [single](99.5 - $bounds.Bottom * $scale))
 $mark.Transform($matrix)
 $points = $mark.PathPoints; $types = $mark.PathTypes
 $commands = [Collections.Generic.List[string]]::new()
@@ -20,7 +20,7 @@ for ($index = 0; $index -lt $points.Length; $index++) {
     elseif ($kind -eq 3) { $commands.Add('C' + (PointText $points[$index]) + ' ' + (PointText $points[$index+1]) + ' ' + (PointText $points[$index+2])); $index += 2 }
     if ($types[$index] -band 128) { $commands.Add('Z') }
 }
-$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="18" fill="#f6f5f1"/><path fill="#272b29" d="' + ($commands -join ' ') + '"/><circle cx="104" cy="45" r="7" fill="#cb5c38"/></svg>'
+$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="18" fill="#f6f5f1"/><path fill="#272b29" d="' + ($commands -join ' ') + '"/><circle cx="104" cy="35.5" r="7" fill="#cb5c38"/></svg>'
 [IO.File]::WriteAllText((Join-Path $root 'public/micro.svg'), $svg + "`n", [Text.UTF8Encoding]::new($false))
 $sizes = @(16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
 $frames = [Collections.Generic.List[byte[]]]::new()
@@ -35,7 +35,7 @@ foreach ($size in $sizes) {
     $graphics = [Drawing.Graphics]::FromImage($bitmap)
     $graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $graphics.ScaleTransform($size / 128, $size / 128)
-    $graphics.FillPath($paper, $tile); $graphics.FillPath($ink, $mark); $graphics.FillEllipse($orange, 97, 38, 14, 14)
+    $graphics.FillPath($paper, $tile); $graphics.FillPath($ink, $mark); $graphics.FillEllipse($orange, 97, 28.5, 14, 14)
     $stream = [IO.MemoryStream]::new(); $bitmap.Save($stream, [Drawing.Imaging.ImageFormat]::Png); $frames.Add($stream.ToArray())
     $stream.Dispose(); $graphics.Dispose(); $bitmap.Dispose()
 }

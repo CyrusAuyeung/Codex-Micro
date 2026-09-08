@@ -65,8 +65,8 @@ export class DeviceMapping {
       let value;try{value=JSON.parse(await this.request('/api/mapping','GET',undefined,network.localAddress||undefined));}catch(e){if(e instanceof SyntaxError)throw new Error('键盘没有返回有效的配置 JSON。');throw e;}
       const mapping=C.validate(value,false);await this.network.record(network,{reachable:true,message:this.simulation?'已读取模拟配置接口。':'已读取真实配置接口。'});return mapping;
     }catch(e){
-      const hints={ENETUNREACH:'Windows 没有可用的网络路径到达键盘。',EHOSTUNREACH:'Windows 无法到达键盘地址。',EADDRNOTAVAIL:'配置连接的 IP 已变化，请重新读取。',ETIMEDOUT:'已尝试连接，但键盘没有响应。请确认处于红灯 Config 模式，必要时重新进入该模式。',ECONNREFUSED:'键盘地址拒绝连接，请确认进入的是 Config 配置模式。'};
-      if(hints[e.code])e.message=hints[e.code]+' '+network.detail;
+      const hints={ENETUNREACH:'无法连接键盘，请连接 Codex Micro Config 后重试。',EHOSTUNREACH:'无法连接键盘，请连接 Codex Micro Config 后重试。',EADDRNOTAVAIL:'网络地址已变化，请重新读取。',ETIMEDOUT:'键盘未响应，请重新进入红灯 Config 模式后重试。',ECONNREFUSED:'键盘拒绝连接，请确认已进入 Config 配置模式。'};
+      if(hints[e.code])e.message=hints[e.code];
       e.network=await this.network.record(network,{reachable:false,code:e.code||'DEVICE_RESPONSE',message:e.message});throw e;
     }
   }
@@ -89,7 +89,7 @@ export class DeviceMapping {
   }
   async prepare({readToken,draft}){
     this.trim();
-    if(this.journal&&waiting(this.journal.state))throw new Error('上次写入还没有核对。请先读取键盘，不会自动重复写入。');
+    if(this.journal&&waiting(this.journal.state))throw new Error('上次写入待核对，请先读取键盘。');
     const read=this.reads.get(readToken);if(!read)throw new Error('读取记录已过期，请重新读取键盘。');
     C.validate(draft,false);
     const fresh=await this.current(),outgoing=C.payload(read.mapping,draft,fresh);
@@ -115,9 +115,9 @@ export class DeviceMapping {
       if(!response||typeof response!=='object'||Array.isArray(response)||response.ok===false||response.success===false||response.error||response.status==='error')throw new Error('键盘保存响应未能确认。');
     }catch(e){
       await this.record({...journal,state:'uncertain',error:e.message});
-      return {state:'uncertain',message:'写入结果尚未确认：'+e.message+' 请重新进入配置热点并读取核对，不会自动重试。',backup};
+      return {state:'uncertain',message:'写入结果未确认：'+e.message+' 请重新连接热点并读取核对。',backup};
     }
     await this.record({...journal,state:'awaiting-verification'});
-    return {state:'awaiting-verification',message:'键盘已响应保存请求。重新进入配置热点后，读取并核对，才能确认保存结果。',backup};
+    return {state:'awaiting-verification',message:'写入请求已发送，请重新连接热点并读取核对。',backup};
   }
 }

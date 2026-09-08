@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {spawn} from 'node:child_process';
+import net from 'node:net';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {randomUUID} from 'node:crypto';
+const root=path.dirname(path.dirname(fileURLToPath(import.meta.url))),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function until(fn){const end=Date.now()+8000;while(Date.now()<end){try{const value=await fn();if(value)return value;}catch{}await sleep(40);}throw new Error('Condition timed out');}
+test('profiles apply atomically, test sessions suppress output and release capture, events stream immediately',{timeout:35000},async t=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'micro-next-server-')),socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));
+  const origin=`http://127.0.0.1:${port}`,fixture=path.join(dir,'hid.json'),commands=path.join(dir,'commands.jsonl');let spec={sequence:1,autoTap:false};await writeFile(fixture,JSON.stringify(spec));
+  const source=code=>({type:'vendor_key',code,modifiers:[]});await writeFile(path.join(dir,'bindings.json'),JSON.stringify({version:1,enabled:false,device:{location_id:'fixture-1'},bindings:{key1:{source:source('AG00'),action:'copy'},stick_up:{source:source('RAD_UP'),action:'scroll_up',step:2,behavior:{repeat:true,once:true,delay:150,interval:40}}}}));
+  const child=spawn(process.execPath,[path.join(root,'server.mjs')],{windowsHide:true,cwd:root,env:{...process.env,MICRO_WINDOWS_TEST:'1',MICRO_WINDOWS_PORT:String(port),MICRO_WINDOWS_DATA:dir,MICRO_WINDOWS_HELPER:path.join(root,'tests/mock-hid.mjs'),MICRO_WINDOWS_FIXTURE:fixture,MICRO_WINDOWS_COMMANDS:commands},stdio:['ignore','pipe','pipe']});let logs='';child.stderr.on('data',b=>logs+=b);
+  const get=async route=>(await fetch(origin+route)).json();const post=async(route,body={},expected=200)=>{const r=await fetch(origin+route,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-Micro-Panel':'1'},body:JSON.stringify(body)});const value=await r.json();assert.equal(r.status,expected,JSON.stringify(value)+logs);return value;};
+  t.after(async()=>{if(child.exitCode===null){await post('/api/quit').catch(()=>{});await until(()=>child.exitCode!==null).catch(()=>child.kill());}});
+  const change=async patch=>{spec={...spec,...patch,sequence:spec.sequence+1};await writeFile(fixture,JSON.stringify(spec));await sleep(100);};
+  const outputs=async()=>{try{return (await readFile(commands,'utf8')).trim().split('\n').map(JSON.parse).filter(c=>['key','scroll'].includes(c.op));}catch{return [];}};
+  let s=await until(async()=>{const s=await get('/api/state');return s.status.ready?s:null;}),initial=s.activeProfileId;
+  const abort=new AbortController(),events=[],stream=await fetch(origin+'/api/events',{signal:abort.signal});const consuming=(async()=>{try{for await(const bytes of stream.body)events.push(Buffer.from(bytes).toString());}catch{}})();t.after(()=>abort.abort());
+  const client=randomUUID();await post('/api/test',{enabled:true,client});await change({tap:true,code:'AG00',act:2});await until(()=>events.join('').includes('"code":"AG00"'));assert.equal((await outputs()).length,0);assert.equal((await get('/api/state')).status.enabled,false);
+  await post('/api/test',{enabled:false,client});assert.equal((await get('/api/state')).status.captured,false);
+  await post('/api/vendor-enabled',{enabled:true});await change({code:'RAD_UP',act:1});await until(async()=> (await outputs()).length>=3);
+  const motion={dialReverse:false,stickReverse:false,engage:.7,release:.2};await post('/api/profiles/apply',{bindings:{key1:{action:'paste'}},motion});const count=(await outputs()).length;await sleep(300);assert.equal((await outputs()).length,count,'applying profile parameters must stop the old repeat timer');
+  assert.equal((await get('/api/state')).bindings.key1.action,'paste');await post('/api/profiles/apply',{bindings:{key1:{action:'unknown'}},motion},400);assert.equal((await get('/api/state')).bindings.key1.action,'paste');
+  await post('/api/profiles',{operation:'copy',name:'第二套'});s=await get('/api/state');const copy=s.profiles.find(p=>p.id!==initial);assert.ok(copy);await post('/api/profiles',{operation:'switch',id:copy.id});s=await get('/api/state');assert.equal(s.motion.engage,.7);assert.equal(s.bindings.key1.action,'paste');
+  await post('/api/profiles/apply',{bindings:{key1:{action:'copy'}},motion});await post('/api/profiles',{operation:'switch',id:initial});assert.equal((await get('/api/state')).bindings.key1.action,'paste');
+  const exported=await get('/api/profiles/export?all=1');await post('/api/profiles/import',{data:exported});assert.equal((await get('/api/state')).profiles.length,4);
+  await post('/api/profiles/backup');const backups=await get('/api/profiles/backups'),preview=await post('/api/profiles/restore',{id:backups.backups[0].id});assert.equal(preview.profiles.length,4);
+  await post('/api/profiles/restore',{id:backups.backups[0].id,confirm:true});assert.equal((await get('/api/state')).profiles.length,4);
+  await post('/api/test',{enabled:true,client});await change({connected:false,tap:false});await until(async()=>!(await get('/api/state')).status.testing);assert.equal((await get('/api/state')).status.enabled,true,'test must not overwrite the saved enabled preference');
+  abort.abort();await consuming;await post('/api/quit');await until(()=>child.exitCode!==null);assert.equal(child.exitCode,0,logs);
+});

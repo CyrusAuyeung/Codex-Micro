@@ -30,6 +30,13 @@ def main():
                         '[assembly:System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]\n', encoding='utf-8')
     base = [csc, '/nologo', '/optimize+', '/platform:x64', '/r:System.Web.Extensions.dll',
             '/win32manifest:' + str(ROOT / 'native/app.manifest')]
+    metadata = sorted(Path('C:/Program Files (x86)/Windows Kits/10/UnionMetadata').glob('10.*/Windows.winmd'))
+    if not metadata:
+        raise SystemExit('Install the Windows 10/11 SDK (WinRT metadata is required for battery reads).')
+    gac = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Microsoft.NET/assembly/GAC_MSIL'
+    winrt = ['/r:' + str(metadata[-1]), '/r:' + str(csc.parent / 'System.Runtime.WindowsRuntime.dll')]
+    for name in ['System.Runtime', 'System.Runtime.InteropServices.WindowsRuntime', 'System.Threading.Tasks']:
+        winrt.append('/r:' + str(next((gac / name).glob('*/' + name + '.dll'))))
     targets = [
         ('MicroHID.Windows.exe', ['/target:exe'], ['HidDevice.cs', 'KeyboardOutput.cs', 'MicroHID.cs']),
         ('Micro Windows.exe', ['/target:winexe', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
@@ -39,11 +46,13 @@ def main():
                                '/resource:' + str(ROOT / 'assets/micro.ico') + ',MicroWindows.Icon'], ['Launcher.cs']),
         ('MicroNetwork.Windows.exe', ['/target:exe', '/r:System.Windows.Forms.dll'], ['NetworkInfo.cs', 'NetworkRepair.cs']),
         ('MicroInput.Windows.exe', ['/target:exe', '/r:System.Windows.Forms.dll'], ['MicroInput.cs']),
+        ('MicroSystem.Windows.exe', ['/target:exe', *winrt], ['MicroSystem.cs']),
+        ('MicroUpdate.Windows.exe', ['/target:winexe'], ['MicroUpdate.cs']),
     ]
     for name, flags, sources in targets:
         run(*base, *flags, '/out:' + str(ROOT / name), assembly, *(ROOT / 'native' / file for file in sources))
     shutil.copyfile(ROOT / 'native/app.config', ROOT / 'Micro Windows.exe.config')
-    for name in ['MicroHID.Windows.exe', 'MicroNetwork.Windows.exe', 'MicroInput.Windows.exe']:
+    for name in ['MicroHID.Windows.exe', 'MicroNetwork.Windows.exe', 'MicroInput.Windows.exe', 'MicroSystem.Windows.exe', 'MicroUpdate.Windows.exe']:
         run(ROOT / name, '--self-test')
     run(ROOT / 'Micro Windows.exe', '--check-files')
     run(ROOT / 'Micro Windows.exe', '--self-test')
@@ -52,7 +61,7 @@ def main():
     for file in (ROOT / 'public').glob('*.js'):
         # Browser entry points are loaded as modules; the shared UMD file is also required by Node.
         subprocess.run([str(node), '--input-type=module', '--check'], input=file.read_bytes(), cwd=ROOT, check=True)
-    print('Built and checked all four Windows x64 executables.', flush=True)
+    print('Built and checked all six Windows x64 executables.', flush=True)
 
 
 if __name__ == '__main__':

@@ -25,13 +25,13 @@ export function describeNetwork(adapters,candidates,helperError=null){
   // advertises a broader route covering the keyboard's subnet.
   const candidate=config.length?candidates.find(c=>config.some(a=>a.name===c.name)):candidates[0];
   const base={checkedAt:new Date().toISOString(),target,adapters,localAddress:candidate?.address||null,interfaceName:candidate?.name||null,canRepair:false,helperError};
-  if(candidate)return {...base,state:'address-ready',summary:candidate.address==='192.168.4.222'?'临时配置地址可用':'配置网段地址已就绪',detail:`通过 ${candidate.name}（${candidate.address}）访问键盘。仍需读取确认设备是否响应。`};
-  if(apipa)return {...base,state:'dhcp-missing',summary:'热点已连接，IP 分配失败',canRepair:config.length===1,detail:`${apipa.name} 只有 ${apipa.addresses.join('、')||'尚未分配的 IPv4 地址'}，无法访问 ${target}。可点击“临时修复连接”，补上本次配置所需的地址。`};
-  if(config.some(a=>a.dhcp&&!a.addresses.length))return {...base,state:'dhcp-pending',summary:'热点已连接，正在获取 IP',detail:'Windows 正在获取配置热点地址，请保持连接约 10 秒后重新检查。'};
-  if(config.length)return {...base,state:'address-mismatch',summary:'热点已连接，IP 地址不匹配',detail:'配置热点未获得 192.168.4.x 地址。请检查此 Wi-Fi 的 IP 分配是否为自动（DHCP）；本程序不会覆盖已有静态地址。'};
-  if(wifi.some(a=>a.wifiError===5))return {...base,state:'wifi-permission',summary:'无法读取 Wi-Fi 连接信息',detail:'Windows 未允许读取当前 Wi-Fi 名称。请在系统的“隐私和安全性 → 位置”中检查权限，或手动确认已连接 Codex Micro Config。'};
-  if(wifi.some(a=>a.ssid==='其他 Wi-Fi'))return {...base,state:'other-network',summary:'当前连接的是其他 Wi-Fi',detail:'请连接 Codex Micro Config 配置热点后重试。热点不提供互联网；同时上网需要另一条独立连接。'};
-  return {...base,state:'unknown',summary:'尚未确认配置连接',detail:'尚未检测到可直接访问 192.168.4.1 的 IPv4 地址。连接配置热点后点击“检查连接”。'};
+  if(candidate)return {...base,state:'address-ready',summary:'配置连接已就绪',detail:'点击“读取键盘”获取配置。'};
+  if(apipa)return {...base,state:'dhcp-missing',summary:'热点已连接，无法获取网络地址',canRepair:config.length===1,detail:config.length===1?'请点击“临时修复连接”。':'请重新连接 Codex Micro Config 配置热点。'};
+  if(config.some(a=>a.dhcp&&!a.addresses.length))return {...base,state:'dhcp-pending',summary:'热点已连接，正在获取网络地址',detail:'请等待 10 秒后重新检查。'};
+  if(config.length)return {...base,state:'address-mismatch',summary:'热点已连接，网络地址不匹配',detail:'请将此 Wi-Fi 的 IP 分配设为“自动”，然后重新连接。'};
+  if(wifi.some(a=>a.wifiError===5))return {...base,state:'wifi-permission',summary:'无法读取 Wi-Fi 连接信息',detail:'请连接 Codex Micro Config，或在 Windows 位置设置中允许读取 Wi-Fi 信息。'};
+  if(wifi.some(a=>a.ssid==='其他 Wi-Fi'))return {...base,state:'other-network',summary:'当前连接的是其他 Wi-Fi',detail:'请连接 Codex Micro Config 配置热点后重试。'};
+  return {...base,state:'unknown',summary:'尚未确认配置连接',detail:'请连接 Codex Micro Config，然后点击“检查连接”。'};
 }
 export class DeviceNetwork {
   constructor({data,simulation=false}){this.file=path.join(data,'device-config','last-connection.json');this.simulation=simulation;this.last=null;this.launching=false;}
@@ -54,7 +54,7 @@ export class DeviceNetwork {
       const n=await this.snapshot();if(!n.canRepair)throw new Error(n.detail);
       try{await run(helper,['--launch-repair'],{windowsHide:true,timeout:120000,maxBuffer:16384});}
       catch(e){throw new Error(e.stderr?.trim()||'临时修复没有启动：'+e.message);}
-      return {message:'临时修复已启动。几秒后点击“读取键盘”。切回其他 Wi-Fi 后会自动移除临时地址。'};
+      return {message:'临时修复已启动，请稍后重试。'};
     }finally{this.launching=false;}
   }
 }

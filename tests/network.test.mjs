@@ -5,7 +5,7 @@ import {DeviceMapping} from '../device-mapping.mjs';
 const wifi=(addresses,extra={})=>({name:'WLAN',config:true,dhcp:true,wireless:true,addresses,...extra});
 const entry=(address,netmask='255.255.255.0')=>({family:'IPv4',internal:false,address,netmask});
 test('connected hotspot with failed DHCP is distinguished from ordinary Wi-Fi and static configuration',()=>{
-  let r=describeNetwork([wifi(['169.254.243.61'])],[]);assert.equal(r.state,'dhcp-missing');assert.equal(r.canRepair,true);assert.match(r.detail,/169.254.243.61/);
+  let r=describeNetwork([wifi(['169.254.243.61'])],[]);assert.equal(r.state,'dhcp-missing');assert.equal(r.canRepair,true);assert.deepEqual(r.adapters[0].addresses,['169.254.243.61']);
   r=describeNetwork([wifi([], {dhcp:false})],[]);assert.equal(r.state,'address-mismatch');assert.equal(r.canRepair,false);
   r=describeNetwork([wifi(['10.4.159.142'],{config:false,ssid:'其他 Wi-Fi'})],[]);assert.equal(r.state,'other-network');assert.equal(r.canRepair,false);
   r=describeNetwork([wifi([],{config:false,wifiError:5})],[]);assert.equal(r.state,'wifi-permission');assert.equal(r.canRepair,false);

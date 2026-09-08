@@ -29,7 +29,7 @@ export class VendorDecoder {
 }
 
 export class VendorInputs {
-  constructor(){this.direction=null;}
+  constructor(motion={}){this.direction=null;this.engage=motion.engage??.55;this.release=motion.release??.30;}
   ingest(message){
     const method=message.m??message.method,p=message.p??message.params;
     if(message.id!==undefined||!p)return [];
@@ -40,7 +40,7 @@ export class VendorInputs {
       return p.act===0||p.act===1?[event(p.k,p.act===1)]:[];
     }
     if(method!=='v.oai.rad'||!Number.isFinite(p.a)||!Number.isFinite(p.d)||p.a<0||p.a>1||p.d<0||p.d>1)return [];
-    const next=p.d<(this.direction?.3:.55)?null:['RAD_RIGHT','RAD_UP','RAD_LEFT','RAD_DOWN'][Math.round(p.a*4)%4];
+    const next=p.d<(this.direction?this.release:this.engage)?null:['RAD_RIGHT','RAD_UP','RAD_LEFT','RAD_DOWN'][Math.round(p.a*4)%4];
     if(next===this.direction)return [];
     const events=[];if(this.direction)events.push(event(this.direction,false));if(next)events.push(event(next,true));this.direction=next;return events;
   }
@@ -50,6 +50,8 @@ export const virtualKeys={...Object.fromEntries([...'abcdefghijklmnopqrstuvwxyz1
 export const windowsModifiers=['left_control','left_shift','left_alt','left_win','right_control','right_shift','right_alt','right_win'];
 export function windowsEvent(to){
   if(!to||to.key_code==='vk_none')return null;
+  if(to.scroll){if(!['vertical','horizontal'].includes(to.scroll.axis)||!Number.isInteger(to.scroll.amount)||Math.abs(to.scroll.amount)<1||Math.abs(to.scroll.amount)>10)throw new Error('滚动参数无效。');return {op:'scroll',axis:to.scroll.axis,amount:to.scroll.amount};}
+  if(to.key_code==='modifiers_only'){if(!Array.isArray(to.modifiers)||!to.modifiers.length||to.modifiers.some(m=>!windowsModifiers.includes(m)))throw new Error('请选择修饰键。');const codes=[...new Set(to.modifiers)].map(m=>virtualKeys[m]);return {op:'key',code:codes.at(-1),modifiers:codes.slice(0,-1)};}
   if(to.consumer_key_code){const code={volume_increment:0xAF,volume_decrement:0xAE,mute:0xAD,play_or_pause:0xB3,scan_next_track:0xB0,scan_previous_track:0xB1}[to.consumer_key_code];if(code===undefined)throw new Error('暂不支持这个媒体功能。');return {op:'key',code,modifiers:[]};}
   if(!Object.hasOwn(virtualKeys,to.key_code))throw new Error('暂不支持这个 Windows 按键。');
   const modifiers=to.modifiers||[];

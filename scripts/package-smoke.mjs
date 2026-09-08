@@ -48,7 +48,7 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.deepEqual(health, {app: 'codex-micro-windows-panel', version, simulation: true, deviceMapping: true, busy:false});
-  for (const route of ['/', '/codex', '/hardware.css', '/hardware.js', '/mapping-core.js', '/app.js', '/style.css','/desktop.js','/desktop.css']) {
+  for (const route of ['/', '/codex', '/views/ordinary', '/views/codex', '/profile-manager.js', '/hardware.css', '/hardware.js', '/mapping-core.js', '/app.js', '/style.css','/desktop.js','/desktop.css','/components.js','/record.js','/device-info.js','/next.css']) {
     const response = await fetch(origin + route, {signal: AbortSignal.timeout(5000)});
     assert.equal(response.status, 200, route);
     assert.ok((await response.text()).length > 100, route);

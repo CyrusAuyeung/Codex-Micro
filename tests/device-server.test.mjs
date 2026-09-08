@@ -21,7 +21,11 @@ test('ordinary keyboard API works independently of browser presence and never ca
   const post=async(route,body={},expected=200)=>{const r=await fetch(origin+route,{method:'POST',headers:{Origin:origin,'X-Micro-Panel':'1','Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();assert.equal(r.status,expected,JSON.stringify(result)+' '+output);return result;};
   t.after(async()=>{if(child.exitCode===null){try{await post('/api/quit');}catch{child.kill();}}await until(()=>child.exitCode!==null).catch(()=>child.kill());});
   await until(async()=>(await fetch(origin+'/api/health')).ok);
-  const html=await(await fetch(origin)).text();assert.match(html,/普通键盘配置/);assert.match(html,/hardware.js/);
+  const html=await(await fetch(origin)).text();assert.match(html,/普通模式/);assert.match(html,/hardware.js/);assert.equal(await(await fetch(origin+'/codex')).text(),html);
+  const local=await(await fetch(origin+'/api/ordinary/profiles')).json(),mapping={mod:Array(16).fill(null),key:Array(16).fill(null)};mapping.mod[1]=128;mapping.key[1]='0x73';
+  await post('/api/ordinary/profiles',{operation:'save',mapping});assert.equal(mock.state.posts.length,0,'local profile saves must not access or write the keyboard');
+  await post('/api/ordinary/profiles',{operation:'copy',name:'工作'});const library=await(await fetch(origin+'/api/ordinary/profiles')).json();assert.equal(library.profiles.length,2);assert.equal(library.activeProfileId,local.activeProfileId);
+  await post('/api/ordinary/profiles',{operation:'switch',id:library.profiles[1].id});await post('/api/ordinary/profiles/backup');const ordinaryBackups=await(await fetch(origin+'/api/ordinary/profiles/backups')).json();assert.ok(ordinaryBackups.backups.length);assert.equal(mock.state.posts.length,0);
   const status=await(await fetch(origin+'/api/device/status')).json();assert.equal(status.simulation,true);assert.equal(status.localRemappingEnabled,false);
   for(const route of ['/api/device/read','/api/device/prepare','/api/device/commit','/api/device/diagnose','/api/device/repair','/api/input/state','/api/input/record','/api/input/confirm','/api/input/cancel']){const r=await fetch(origin+route,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);}
   const client=randomUUID(),id=randomUUID();assert.equal((await post('/api/input/record',{client,id})).confirmRequired,true);

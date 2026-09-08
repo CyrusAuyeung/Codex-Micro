@@ -7,7 +7,7 @@ using Microsoft.Win32.SafeHandles;
 
 internal sealed class DeviceInfo {
     internal string Path, Product, Id;
-    internal ushort Vendor, ProductId, Page, Usage, InputLength;
+    internal ushort Vendor, ProductId, Page, Usage, InputLength, OutputLength;
     internal object Public() { return new { product=Product, vendor_id=Vendor, product_id=ProductId, location_id=Id, usage_page=Page, usage=Usage, input_length=InputLength }; }
 }
 
@@ -34,6 +34,7 @@ internal static class Hid {
     [DllImport("setupapi.dll")] internal static extern bool SetupDiDestroyDeviceInfoList(IntPtr set);
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] internal static extern SafeFileHandle CreateFile(string path,uint access,uint share,IntPtr security,uint disposition,uint flags,IntPtr template);
     [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool ReadFile(SafeFileHandle file,IntPtr bytes,uint size,out uint read,IntPtr overlap);
+    [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool WriteFile(SafeFileHandle file,IntPtr bytes,uint size,out uint written,IntPtr overlap);
     [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool GetOverlappedResult(SafeFileHandle file,IntPtr overlap,out uint bytes,bool wait);
     [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool CancelIoEx(SafeFileHandle file,IntPtr overlap);
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] internal static extern IntPtr CreateEvent(IntPtr security,bool manual,bool initial,string name);
@@ -83,7 +84,7 @@ internal static class Hid {
                         IntPtr preparsed;if(!HidD_GetPreparsedData(handle,out preparsed))continue;
                         Caps caps;try { if(HidP_GetCaps(preparsed,out caps)!=0x110000)continue; }finally{HidD_FreePreparsedData(preparsed);}
                         string id;using(var sha=SHA256.Create()){id=BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(devicePath.ToLowerInvariant()))).Replace("-","").Substring(0,24);}
-                        result.Add(new DeviceInfo { Path=devicePath,Product=name,Id=id,Vendor=a.VendorID,ProductId=a.ProductID,Page=caps.UsagePage,Usage=caps.Usage,InputLength=caps.InputReportByteLength });
+                        result.Add(new DeviceInfo { Path=devicePath,Product=name,Id=id,Vendor=a.VendorID,ProductId=a.ProductID,Page=caps.UsagePage,Usage=caps.Usage,InputLength=caps.InputReportByteLength,OutputLength=caps.OutputReportByteLength });
                     }
                 }finally{Marshal.FreeHGlobal(detail);Marshal.FreeHGlobal(info);}
             }

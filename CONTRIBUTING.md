@@ -2,7 +2,7 @@
 
 ## 本地开发
 
-使用 Windows x64、Python 3.11+ 和 .NET Framework 4.8。在仓库根目录执行：
+使用 Windows x64、Python 3.11+、.NET Framework 4.8 和 Windows 10/11 SDK（蓝牙设备信息所需）。在仓库根目录执行：
 
 ```powershell
 python build.py
@@ -32,7 +32,7 @@ $env:MICRO_UI_ARTIFACTS = Join-Path $env:TEMP 'micro-ui-tests'
 2. 在 `CHANGELOG.md` 顶部写明本版变化。
 3. 执行构建、测试与打包核验。桌面更新须验证旧实例退出、未保存修改处理及配置兼容。
 4. 将修改合入 `main`，确认 **CI** 成功。
-5. 在 GitHub Actions 选择 **Release → Run workflow**，从 `main` 填写版本号，例如 `2.0.0`。
+5. 在 GitHub Actions 选择 **Release → Run workflow**，从 `main` 填写版本号，例如 `2.1.0`。
 
 发布流程再次执行构建、接口及界面测试、安装核验，再创建 `v版本号` 标签和公开 Release，并附上 EXE 安装包与 SHA-256 文件。已经存在的 Release 不会被覆盖。
 

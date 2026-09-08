@@ -30,7 +30,7 @@ internal static class MicroHID {
     private static bool Open() {
         if(captured)return true;
         if(device==null){error="没有找到 Codex 模式的独立 HID 接口。";return false;}
-        var h=Hid.CreateFile(device.Path,Hid.Read,0,IntPtr.Zero,3,Hid.Overlapped,IntPtr.Zero);
+        var h=Hid.CreateFile(device.Path,Hid.Read|0x40000000,0,IntPtr.Zero,3,Hid.Overlapped,IntPtr.Zero);
         if(h.IsInvalid){int code=Marshal.GetLastWin32Error();h.Dispose();error="无法独占接收小键盘（Windows 错误 "+code+"）。请关闭占用此设备的其它控制程序后重试。";return false;}
         handle=h;captured=true;error=null;int gen=++generation;int length=device.InputLength;
         var closed=new ManualResetEvent(false);readerClosed=closed;
@@ -79,11 +79,30 @@ internal static class MicroHID {
             }catch(Exception e){error="设备检查失败："+e.Message;Status();}
         }
     }
+    private static void QueryStatus(string id){
+        Guid parsed;if(!Guid.TryParse(id,out parsed))throw new ArgumentException("Invalid request ID");
+        if(!captured||handle==null||device.OutputLength!=64)return;
+        var payload=Encoding.UTF8.GetBytes(json.Serialize(new {jsonrpc="2.0",method="device.status",@params=new {},id=id})+"\r\n");
+        for(int i=0;i<payload.Length;i+=61){
+            int size=Math.Min(61,payload.Length-i);var report=new byte[64];report[0]=6;report[1]=2;report[2]=(byte)size;Array.Copy(payload,i,report,3,size);
+            IntPtr bytes=Marshal.AllocHGlobal(64),ov=Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Hid.Overlap))),signal=Hid.CreateEvent(IntPtr.Zero,true,false,null);
+            try{Marshal.Copy(report,0,bytes,64);Marshal.StructureToPtr(new Hid.Overlap {Event=signal},ov,false);uint count;
+                if(!Hid.WriteFile(handle,bytes,64,out count,ov)){
+                    int code=Marshal.GetLastWin32Error();if(code!=997)throw new System.ComponentModel.Win32Exception(code);
+                    if(Hid.WaitForSingleObject(signal,1000)!=0)throw new TimeoutException("设备状态查询超时。");
+                    if(!Hid.GetOverlappedResult(handle,ov,out count,false))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+                }
+                if(count!=64)throw new Exception("设备状态查询未完整发送。");
+            }finally{Hid.CancelIoEx(handle,ov);uint ignored;Hid.GetOverlappedResult(handle,ov,out ignored,true);Hid.CloseHandle(signal);Marshal.FreeHGlobal(ov);Marshal.FreeHGlobal(bytes);}
+        }
+    }
     private static void Command(Dictionary<string,object> c) {
         string op=Get(c,"op");
         lock(gate) {
             if(op=="heartbeat"){heartbeat=DateTime.UtcNow;return;}
             if(op=="release"){keyboard.Release();return;}
+            if(op=="device-status"){try{QueryStatus(Get(c,"requestId"));}catch(Exception e){Emit(new {kind="telemetry-error",error=e.Message});}return;}
+            if(op=="scroll"){if(captured)keyboard.Scroll(Get(c,"axis"),Convert.ToInt32(c["amount"]));return;}
             if(op=="capture") {
                 if(!(c.ContainsKey("value")&&c["value"] is bool))throw new ArgumentException("Invalid capture flag");
                 bool value=(bool)c["value"];wanted=value;bool ok=true;

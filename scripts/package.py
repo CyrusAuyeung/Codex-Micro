@@ -9,6 +9,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = [
+    'MicroUpdate.Windows.exe', 'ordinary-profiles.mjs', 'public/profile-manager.js', 'public/shell.html',
+    'MicroSystem.Windows.exe', 'profiles.mjs', 'output.mjs', 'telemetry.mjs',
+    'public/components.js', 'public/record.js', 'public/device-info.js', 'public/next.css',
     'Micro Windows.exe', 'Micro Windows.exe.config', 'MicroHID.Windows.exe', 'MicroNetwork.Windows.exe', 'MicroInput.Windows.exe',
     'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll',
     'package.json', 'app-info.mjs', 'updates.mjs', 'server.mjs', 'model.mjs', 'vendor.mjs', 'device-mapping.mjs', 'network.mjs', 'input.mjs',

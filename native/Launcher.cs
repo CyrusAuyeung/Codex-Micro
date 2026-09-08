@@ -8,6 +8,8 @@ using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +23,7 @@ internal static class Launcher {
     internal const string AppId="codex-micro-windows-panel";
     internal static readonly string Version=Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
     internal static string Origin="http://127.0.0.1:18414",Data,PipeName,MutexName;
-    internal static bool TestMode;
+    internal static bool TestMode,Background;
     private static Process server;
     private static bool serverStarted;
     private static StreamWriter log;
@@ -39,6 +41,7 @@ internal static class Launcher {
     private static bool FilesReady(){
         foreach(var name in new[]{"runtime/node.exe","MicroHID.Windows.exe","MicroNetwork.Windows.exe","MicroInput.Windows.exe","package.json","app-info.mjs","updates.mjs","server.mjs","model.mjs","vendor.mjs","network.mjs","input.mjs","device-mapping.mjs","public/hardware.html","public/hardware.js","public/hardware.css","public/mapping-core.js","public/index.html","public/app.js","public/style.css","public/desktop.css","public/desktop.js","public/keyboard.css","public/micro.svg","Microsoft.Web.WebView2.Core.dll","Microsoft.Web.WebView2.WinForms.dll","WebView2Loader.dll"})
             if(!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,name)))return false;
+        foreach(var name in new[]{"MicroSystem.Windows.exe","MicroUpdate.Windows.exe","profiles.mjs","ordinary-profiles.mjs","output.mjs","telemetry.mjs","public/components.js","public/profile-manager.js","public/shell.html","public/record.js","public/device-info.js","public/next.css"})if(!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,name)))return false;
         return true;
     }
     internal static bool Stop() {
@@ -78,6 +81,7 @@ internal static class Launcher {
         if(Array.IndexOf(args,"--check-files")>=0)return FilesReady()?0:2;
         if(Array.IndexOf(args,"--self-test")>=0)return DesktopPolicy.SelfTest();
         TestMode=Array.IndexOf(args,"--ui-test")>=0;
+        Background=Array.IndexOf(args,"--background")>=0;
         var port=TestMode?Environment.GetEnvironmentVariable("MICRO_WINDOWS_PORT"):"18414";
         int number;if(!int.TryParse(port,out number)||number<1024||number>65535)return 2;
         Origin="http://127.0.0.1:"+number;
@@ -89,9 +93,10 @@ internal static class Launcher {
         string command=quit?(Array.IndexOf(args,"--shutdown-if-idle")>=0?"quit-if-idle":"quit"):"activate";
         if(TestMode&&Array.IndexOf(args,"--test-window-hidden")>=0)command="test-hidden";
         if(TestMode&&Array.IndexOf(args,"--test-window-visible")>=0)command="test-visible";
+        if(TestMode&&Array.IndexOf(args,"--test-tray-left-click")>=0)command="test-tray-left";
         try {
             bool first;using(var single=new Mutex(true,MutexName,out first)) {
-                if(!first){int code=Signal(command);if(code==0&&quit){try{if(single.WaitOne(15000))single.ReleaseMutex();else return 3;}catch(AbandonedMutexException){single.ReleaseMutex();}}return code;}
+                if(!first){if(Background&&!quit)return 0;int code=Signal(command);if(code==0&&quit){try{if(single.WaitOne(15000))single.ReleaseMutex();else return 3;}catch(AbandonedMutexException){single.ReleaseMutex();}}return code;}
                 if(quit)return 0;
                 var previous=Health();
                 if(previous!=null){
@@ -107,7 +112,7 @@ internal static class Launcher {
                 log=new StreamWriter(Path.Combine(Data,"panel.log"),true,new UTF8Encoding(false));
                 var start=new ProcessStartInfo(Path.Combine(root,"runtime/node.exe"),"\""+Path.Combine(root,"server.mjs")+"\""){WorkingDirectory=root,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};
                 start.EnvironmentVariables["MICRO_WINDOWS_DATA"]=Data;start.EnvironmentVariables["MICRO_WINDOWS_PORT"]=port;
-                if(!TestMode)foreach(var name in new[]{"MICRO_WINDOWS_TEST","MICRO_WINDOWS_HELPER","MICRO_WINDOWS_DEVICE_ORIGIN","MICRO_WINDOWS_INPUT_HELPER","NODE_OPTIONS","NODE_PATH"})start.EnvironmentVariables.Remove(name);
+                if(!TestMode)foreach(var name in new[]{"MICRO_WINDOWS_TEST","MICRO_WINDOWS_HELPER","MICRO_WINDOWS_DEVICE_ORIGIN","MICRO_WINDOWS_INPUT_HELPER","MICRO_WINDOWS_UPDATE_FIXTURE","NODE_OPTIONS","NODE_PATH"})start.EnvironmentVariables.Remove(name);
                 else start.EnvironmentVariables["MICRO_WINDOWS_TEST"]="1";
                 server=new Process{StartInfo=start};server.OutputDataReceived+=Log;server.ErrorDataReceived+=Log;server.Start();serverStarted=true;server.BeginOutputReadLine();server.BeginErrorReadLine();
                 for(int i=0;i<60&&!Running();i++){if(server.HasExited)throw new Exception("本地服务启动失败。日志："+Path.Combine(Data,"panel.log"));Thread.Sleep(150);}
@@ -116,7 +121,7 @@ internal static class Launcher {
                 if(!server.HasExited)server.WaitForExit(4000);
                 return 0;
             }
-        }catch(Exception e){if(TestMode){Directory.CreateDirectory(Data);File.WriteAllText(Path.Combine(Data,"desktop-error.txt"),e.ToString());}else MessageBox.Show(e.Message,"Micro Windows",MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;}
+        }catch(Exception e){if(TestMode||Background){if(!String.IsNullOrEmpty(Data)){Directory.CreateDirectory(Data);File.WriteAllText(Path.Combine(Data,"desktop-error.txt"),e.ToString());}}else MessageBox.Show(e.Message,"Micro Windows",MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;}
         finally{if(serverStarted&&!server.HasExited){Stop();if(!server.WaitForExit(4000))server.Kill();}lock(logLock){if(log!=null){log.Dispose();log=null;}}}
     }
     private sealed class DesktopContext:ApplicationContext {
@@ -128,7 +133,7 @@ internal static class Launcher {
         private readonly NotifyIcon icon;
         private readonly Icon appIcon;
         private readonly System.Windows.Forms.Timer timer;
-        private bool exiting,ready,quitting;
+        private bool exiting,ready,quitting,installing;
         internal DesktopContext(){
             using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("MicroWindows.Icon"))using(var source=new Icon(stream)){appIcon=(Icon)source.Clone();}
             window=new Form{Text="Micro Windows",Icon=appIcon,StartPosition=FormStartPosition.CenterScreen};
@@ -140,15 +145,17 @@ internal static class Launcher {
             window.ResumeLayout(false);
             window.FormClosing+=(s,e)=>{if(!exiting&&e.CloseReason==CloseReason.UserClosing){e.Cancel=true;HideWindow();}};
             window.DpiChanged+=(s,e)=>SetMinimumSize(e.DeviceDpiNew);
-            window.Shown+=async(s,e)=>{
+            window.Shown+=(s,e)=>{
                 SetMinimumSize(GetDpiForWindow(window.Handle));
                 var area=Screen.FromControl(window).WorkingArea;window.Size=new Size(Math.Min(window.Width,area.Width-24),Math.Min(window.Height,area.Height-24));
-                await Initialize();
             };
             var menu=new ContextMenuStrip();menu.Items.Add("打开 Micro Windows",null,(s,e)=>Activate());menu.Items.Add("退出",null,async(s,e)=>await Quit(false));
-            icon=new NotifyIcon{Icon=appIcon,Text="Micro Windows",ContextMenuStrip=menu,Visible=!TestMode};icon.DoubleClick+=(s,e)=>Activate();
+            icon=new NotifyIcon{Icon=appIcon,Text="Micro Windows",ContextMenuStrip=menu,Visible=!TestMode};icon.MouseClick+=TrayClick;icon.DoubleClick+=(s,e)=>Activate();
             timer=new System.Windows.Forms.Timer{Interval=1000};timer.Tick+=(s,e)=>{if(server.HasExited){exiting=true;window.Close();ExitThread();}};timer.Start();
-            window.Show();Task.Run((Action)Listen);
+            // Create the owner handle for tray IPC without ever showing a startup window.
+            var ownerHandle=window.Handle;
+            if(!Background)window.Show();
+            window.BeginInvoke((Action)(async()=>await Initialize()));Task.Run((Action)Listen);
         }
         private void SetMinimumSize(double dpi){var scale=dpi/96.0;window.MinimumSize=new Size((int)Math.Round(820*scale),(int)Math.Round(570*scale));}
         private async Task Initialize(){
@@ -180,16 +187,10 @@ internal static class Launcher {
                     if(!DesktopPolicy.LocalPage(e.Source,Origin))return;
                     string message;try{message=e.TryGetWebMessageAsString();}catch{return;}
                     if(message=="quit")await Quit(false);
+                    else if(message=="install-update")await InstallUpdate();
                     else if(TestMode&&message=="test-hide")HideWindow();
                 };
-                core.NavigationCompleted+=(s,e)=>{
-                    ready=e.IsSuccess;
-                    if(TestMode)File.WriteAllText(Path.Combine(Data,"display.json"),new JavaScriptSerializer().Serialize(new {
-                        dpi=GetDpiForWindow(window.Handle),perMonitorV2=AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(window.Handle),new IntPtr(-4)),
-                        width=web.ClientSize.Width,height=web.ClientSize.Height,zoom=web.ZoomFactor,
-                        targetFramework=AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName,icon=window.Icon!=null
-                    }));
-                };core.Navigate(Origin+"/");
+                core.NavigationCompleted+=(s,e)=>{ready=e.IsSuccess;RecordDisplay();};web.SizeChanged+=(s,e)=>RecordDisplay();core.Navigate(Origin+"/");
             }catch(Exception e){
                 if(TestMode)File.WriteAllText(Path.Combine(Data,"desktop-error.txt"),e.ToString());
                 else MessageBox.Show(window,"桌面窗口无法启动。请重新运行安装程序以检查 WebView2。\n\n"+e.Message,"Micro Windows",MessageBoxButtons.OK,MessageBoxIcon.Error);
@@ -197,10 +198,33 @@ internal static class Launcher {
             }
         }
         private void OpenExternal(string url){if(DesktopPolicy.External(url))Process.Start(new ProcessStartInfo(url){UseShellExecute=true});}
-        private void Activate(){if(!TestMode){window.Show();if(window.WindowState==FormWindowState.Minimized)window.WindowState=FormWindowState.Normal;window.Activate();}else window.Show();}
+        private void TrayClick(object sender,MouseEventArgs e){if(e.Button==MouseButtons.Left)Activate();}
+        private async Task InstallUpdate(){
+            if(installing||!ready)return;installing=true;Process runner=null;
+            try{
+                var serializer=new JavaScriptSerializer();
+                var state=serializer.Deserialize<Dictionary<string,object>>(await web.CoreWebView2.ExecuteScriptAsync("window.microDesktopState ? window.microDesktopState() : ({busy:true,dirty:false})"));
+                if(state==null||(bool)state["busy"]||(bool)state["dirty"])throw new Exception("请先保存或撤销草稿，并完成当前操作，再安装更新。");
+                var package=await Task.Run(()=>{
+                    var request=(HttpWebRequest)WebRequest.Create(Origin+"/api/updates/prepare");request.Method="POST";request.Proxy=null;request.Timeout=30000;request.ContentType="application/json";request.Headers["Origin"]=Origin;request.Headers["X-Micro-Panel"]="1";request.ContentLength=2;using(var body=request.GetRequestStream()){var bytes=Encoding.UTF8.GetBytes("{}");body.Write(bytes,0,bytes.Length);}using(var response=request.GetResponse())using(var reader=new StreamReader(response.GetResponseStream()))return serializer.Deserialize<Dictionary<string,object>>(reader.ReadToEnd());
+                });
+                var version=(string)package["version"];var file=Path.GetFullPath((string)package["file"]);var folder=Path.GetFullPath(Path.Combine(Data,"updates"));
+                if(!Regex.IsMatch(version,@"^\d{1,5}\.\d{1,5}\.\d{1,5}$")||!String.Equals(Path.GetDirectoryName(file),folder,StringComparison.OrdinalIgnoreCase)||Path.GetFileName(file)!="Micro-Windows-"+version+"-Setup-x64.exe")throw new Exception("更新包位置无效。");
+                using(var sha=SHA256.Create())using(var stream=File.OpenRead(file)){var hash=BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();if(hash!=(string)package["sha256"]||stream.Length!=Convert.ToInt64(package["size"]))throw new Exception("更新包已发生变化，请重新下载。");}
+                if(TestMode){File.WriteAllText(Path.Combine(Data,"update-install-test.json"),serializer.Serialize(new {version=version,verified=true,executed=false}));web.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(new {kind="update-install-result",error="模拟测试：安装请求和校验已通过，没有执行安装包。"}));return;}
+                var root=AppDomain.CurrentDomain.BaseDirectory;if(!File.Exists(Path.Combine(root,"unins000.exe")))throw new Exception("请在已安装的 Micro Windows 中执行更新；当前运行的是便携或开发目录。");
+                var runnerFolder=Path.Combine(folder,"runner-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(runnerFolder);var program=Path.Combine(runnerFolder,"MicroUpdate.Windows.exe");File.Copy(Path.Combine(root,"MicroUpdate.Windows.exe"),program);
+                package["appDirectory"]=root;package["parentPid"]=Process.GetCurrentProcess().Id;package["parentStart"]=Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks.ToString();package["restart"]=true;var ticket=Path.Combine(runnerFolder,"ticket.json");File.WriteAllText(ticket,serializer.Serialize(package),new UTF8Encoding(false));
+                runner=Process.Start(new ProcessStartInfo(program,"\""+ticket+"\""){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,WorkingDirectory=runnerFolder});
+                if(!await Quit(true)){if(!runner.HasExited)runner.Kill();throw new Exception("当前操作尚未结束，未安装更新。请稍后重试。");}
+            }catch(Exception e){if(runner!=null)try{if(!runner.HasExited)runner.Kill();}catch{}web.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new {kind="update-install-result",error=e.Message}));}
+            finally{installing=false;if(runner!=null)runner.Dispose();}
+        }
+        private void RecordDisplay(){if(TestMode&&ready)File.WriteAllText(Path.Combine(Data,"display.json"),new JavaScriptSerializer().Serialize(new {dpi=GetDpiForWindow(window.Handle),perMonitorV2=AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(window.Handle),new IntPtr(-4)),width=web.ClientSize.Width,height=web.ClientSize.Height,zoom=web.ZoomFactor,targetFramework=AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName,icon=window.Icon!=null}));}
+        private void Activate(){if(!TestMode){window.Show();if(window.WindowState==FormWindowState.Minimized)window.WindowState=FormWindowState.Normal;window.Activate();}else window.Show();RecordDisplay();}
         private async void HideWindow(){if(ready)try{await web.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new Event('micro-window-hiding'))");}catch{}window.Hide();}
         private async Task<bool> Quit(bool idleOnly){
-            if(quitting)return false;quitting=true;
+            if(quitting||installing&&!idleOnly)return false;quitting=true;
             try{
                 if(ready){
                     var json=await web.CoreWebView2.ExecuteScriptAsync("window.microDesktopState ? window.microDesktopState() : ({busy:true,dirty:false})");
@@ -220,7 +244,7 @@ internal static class Launcher {
                         pipe.WaitForConnection();
                         using(var reader=new StreamReader(pipe,Encoding.UTF8,false,1024,true))using(var writer=new StreamWriter(pipe,new UTF8Encoding(false),1024,true)){
                             var read=reader.ReadLineAsync();if(!read.Wait(3000))continue;var command=read.Result;var result=new TaskCompletionSource<bool>();
-                            window.BeginInvoke((Action)(async()=>{if(command=="activate"){Activate();result.TrySetResult(true);}else if(TestMode&&command=="test-hidden")result.TrySetResult(!window.Visible);else if(TestMode&&command=="test-visible")result.TrySetResult(window.Visible);else if(command=="quit"||command=="quit-if-idle")result.TrySetResult(await Quit(command=="quit-if-idle"));else result.TrySetResult(false);}));
+                            window.BeginInvoke((Action)(async()=>{if(command=="activate"){Activate();result.TrySetResult(true);}else if(TestMode&&command=="test-tray-left"){TrayClick(icon,new MouseEventArgs(MouseButtons.Left,1,0,0,0));result.TrySetResult(window.Visible);}else if(TestMode&&command=="test-hidden")result.TrySetResult(!window.Visible);else if(TestMode&&command=="test-visible")result.TrySetResult(window.Visible);else if(command=="quit"||command=="quit-if-idle")result.TrySetResult(await Quit(command=="quit-if-idle"));else result.TrySetResult(false);}));
                             if(result.Task.Wait(85000)){writer.WriteLine(result.Task.Result?"ok":"busy");writer.Flush();}
                         }
                     }
